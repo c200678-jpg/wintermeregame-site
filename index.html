@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wintermere: Ember Blast — a puzzle where fire follows the wind</title>
+<meta name="description" content="Tap a tile. Fire spreads through its color. Then the wind carries it. Relight a mountain village, one hearth at a time. Coming soon to Android.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..700,0..100&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --night:#141824; --night-2:#1c2130; --ember:#ff8c1a; --hot:#ffd84d; --snow:#f5f1e8; --ash:#8a8f9c;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--night);color:var(--snow);font-family:"Fraunces",Georgia,serif;font-variation-settings:"SOFT" 60,"opsz" 18;}
+  body{min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:28px 20px 56px;line-height:1.5}
+  a{color:var(--hot)}
+  .wrap{width:100%;max-width:440px}
+  .brand{font-size:15px;letter-spacing:.02em;color:var(--ash);margin:0 0 18px}
+  .brand b{color:var(--snow);font-weight:600}
+
+  .stage{position:relative;border-radius:22px;overflow:hidden;background:#0f121b;aspect-ratio:9/16;
+         box-shadow:0 0 0 1px rgba(255,255,255,.05), 0 30px 80px -30px rgba(255,140,26,.55), 0 10px 40px -20px #000}
+  .stage video{width:100%;height:100%;object-fit:cover;display:block}
+  .stage::after{content:"";position:absolute;inset:auto 0 0 0;height:38%;pointer-events:none;
+         background:linear-gradient(to top, rgba(20,24,36,.9), rgba(20,24,36,0))}
+  .stage .tag{position:absolute;left:16px;bottom:16px;font-size:14px;color:var(--ash)}
+
+  h1{font-size:38px;line-height:1.08;font-weight:500;margin:28px 0 12px;letter-spacing:-.01em;
+     font-variation-settings:"SOFT" 80,"opsz" 96}
+  h1 .fire{color:var(--ember)}
+  p.lead{font-size:18px;color:#d9d4c8;margin:0 0 24px;max-width:36ch}
+
+  form{display:flex;gap:8px;margin:0 0 10px}
+  input[type=email]{flex:1;min-width:0;font:inherit;font-size:17px;padding:14px 16px;border-radius:14px;border:1px solid #303648;
+        background:var(--night-2);color:var(--snow)}
+  input[type=email]::placeholder{color:#6e7482}
+  input[type=email]:focus{outline:2px solid var(--hot);outline-offset:1px;border-color:transparent}
+  button{font:inherit;font-size:17px;font-weight:600;padding:14px 18px;border:0;border-radius:14px;cursor:pointer;
+        background:linear-gradient(180deg,var(--hot),var(--ember));color:#2a1600;white-space:nowrap}
+  button:focus-visible{outline:2px solid var(--snow);outline-offset:2px}
+  button[disabled]{opacity:.6;cursor:default}
+  .fine{font-size:14px;color:var(--ash);margin:0 0 34px}
+  .msg{font-size:15px;min-height:1.5em;margin:0 0 6px}
+  .msg.ok{color:#8fe3a0}.msg.err{color:#ff9b8a}
+
+  .how{border-top:1px solid #262c3b;padding-top:26px;margin-top:6px}
+  .how h2{font-size:16px;font-weight:600;color:var(--ash);margin:0 0 14px}
+  .beat{display:grid;grid-template-columns:44px 1fr;gap:12px;align-items:start;margin:0 0 16px}
+  .beat .tile{width:44px;height:44px;border-radius:9px}
+  .beat p{margin:0;font-size:17px}
+  .beat p b{font-weight:600;color:var(--snow)}
+  .village{margin:26px 0 0;font-size:17px;color:#d9d4c8;border-left:3px solid var(--ember);padding-left:14px}
+  footer{margin-top:44px;font-size:13px;color:#5f6573}
+  .fine a,footer a{color:inherit;text-decoration:underline;text-underline-offset:2px}
+  @media (prefers-reduced-motion:reduce){ .stage video{animation:none} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="brand"><b>Wintermere: Ember Blast</b> — coming soon to Android</p>
+
+  <div class="stage">
+    <video autoplay muted loop playsinline preload="auto" poster="poster.jpg" width="720" height="1280" src="gameplay.mp4"></video>
+    <span class="tag">Real gameplay</span>
+  </div>
+
+  <h1>Tap a tile. Let the wind carry the <span class="fire">fire</span>.</h1>
+  <p class="lead">A quick puzzle with one twist: fire spreads through a color, then jumps downwind. Plan two moves ahead and a whole board goes up at once.</p>
+
+  <form id="signup" novalidate>
+    <input type="email" name="email" placeholder="your@email.com" autocomplete="email" required aria-label="Email address">
+    <button type="submit" id="btn">Get early access</button>
+  </form>
+  <p class="msg" id="msg" aria-live="polite"></p>
+  <p class="fine">Free to play. We'll email you once when it's ready, then delete your address. <a href="https://ramovicdigital.com/privacy/#launch-list">Privacy policy</a></p>
+
+  <section class="how">
+    <h2>How it plays</h2>
+    <div class="beat"><div class="tile" style="background:#db4040"></div><p><b>Tap</b> a tile and every connected tile of that color burns.</p></div>
+    <div class="beat"><div class="tile" style="background:linear-gradient(135deg,#ff8c1a,#ffd84d)"></div><p><b>The wind</b> carries the fire one step further — and whatever it lands on burns too.</p></div>
+    <div class="beat"><div class="tile" style="background:#9959cc"></div><p><b>Sparks are limited.</b> Pick the cluster with the best neighbors downwind, not the biggest one.</p></div>
+    <p class="village">Every level you clear relights a hearth in Wintermere, a snowed-in mountain village, and brings another family home.</p>
+  </section>
+
+  <footer>© 2026 Ramovic Digital. Wintermere: Ember Blast is an original game and an original village, with no ties to any other title. · <a href="https://ramovicdigital.com/privacy/">Privacy policy</a></footer>
+</div>
+
+<script>
+  // ----- Signup -----
+  // Point this at your form endpoint. Formspree (free): create a form at formspree.io,
+  // paste the URL it gives you here, e.g. "https://formspree.io/f/abcdwxyz".
+  const FORM_ENDPOINT = "https://formspree.io/f/xljdzpwk";
+
+  const form = document.getElementById('signup');
+  const msg  = document.getElementById('msg');
+  const btn  = document.getElementById('btn');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = form.email.value.trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { msg.textContent = "Enter a valid email address."; msg.className = "msg err"; return; }
+    if (!FORM_ENDPOINT) { msg.textContent = "Signups aren't connected yet (set FORM_ENDPOINT)."; msg.className = "msg err"; return; }
+    btn.disabled = true; msg.textContent = "Sending…"; msg.className = "msg";
+    try {
+      const r = await fetch(FORM_ENDPOINT, { method: "POST", headers: { "Accept": "application/json", "Content-Type": "application/json" },
+                                              body: JSON.stringify({ email, source: "ember-landing" }) });
+      if (!r.ok) throw new Error("bad status");
+      msg.textContent = "You're on the list. We'll email you when Wintermere is ready."; msg.className = "msg ok";
+      form.email.value = "";
+      // Conversion events (uncomment once pixels are installed below)
+      // if (window.ttq) ttq.track('CompleteRegistration');
+      // if (window.fbq) fbq('track', 'Lead');
+    } catch (err) {
+      msg.textContent = "Couldn't send. Check your connection and try again."; msg.className = "msg err";
+    } finally { btn.disabled = false; }
+  });
+
+  // ----- Ad pixels (paste the snippets from TikTok Ads Manager / Meta Events Manager here) -----
+  // <TikTok pixel snippet>
+  // <Meta pixel snippet>
+</script>
+</body>
+</html>
