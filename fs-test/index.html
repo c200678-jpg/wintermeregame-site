@@ -1,0 +1,1195 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex, nofollow"><title>Wintermere · game test</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"><style>:root{padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui}[hidden]{display:none!important}</style>
+<style>
+/* Layout: one phone column; the game scene is drawn full-bleed on a canvas in the capture's own 1080-wide space,
+   the observer screens (setup, notes, results) are plain forms in the same night palette. A single dark look: the game's night. */
+:root {
+  --night: #14141a;        /* the capture's sky */
+  --slate: #1e2230;        /* panels */
+  --line: #33394d;
+  --frost: #9fd3e6;        /* ice, the wind */
+  --ember: #ffb052;        /* fire, the call to act */
+  --text: #eef1f6;
+  --soft: #a9b1c3;
+  --good: #8fd694;
+  --display: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+html { box-sizing: border-box; height: 100%; }
+body { height: auto; min-height: 100%; }
+body { background: var(--night); color: var(--text); font-family: var(--display); font-size: 16px; line-height: 1.4;
+  -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+.col { max-width: 480px; margin: 0 auto; }
+.pad { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+button { font-family: var(--display); }
+button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+
+/* ---- the game ---- */
+#game { user-select: none; -webkit-user-select: none; }
+.hud { display: grid; grid-template-columns: 40px 1fr 64px; align-items: center; gap: 8px; padding-block: 8px 4px; min-height: 64px; }
+.restart { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--soft); font-size: 20px; line-height: 1; cursor: pointer; }
+.restart.ask { width: auto; }
+.goal { font-weight: 600; font-size: 17px; line-height: 1.2; color: var(--text); text-wrap: balance; transition: color .4s, text-shadow .4s; min-width: 0; }
+.goal.pulse { color: #fff4dc; text-shadow: 0 0 12px rgba(255,176,82,.7); }
+.vane { display: grid; justify-items: center; gap: 0; }
+.vane svg { width: 44px; height: 44px; overflow: visible; }
+.vane .arrow { transform-origin: 22px 22px; transition: transform .6s cubic-bezier(.3,.1,.2,1); }
+.vane .ring { fill: none; stroke: var(--line); stroke-width: 2; }
+.vane.pulse .ring { stroke: var(--frost); animation: vp 1s ease-in-out 3; }
+@keyframes vp { 50% { stroke-width: 5; } }
+.vane .lbl { font-size: 12px; letter-spacing: .08em; color: var(--frost); text-transform: lowercase; margin-top: -2px; }
+#game { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+#game.tall { height: auto; overflow: visible; }
+#game.tall .bar { position: sticky; bottom: 0; background: var(--night); z-index: 2; }
+.hud, .bar { flex: 0 0 auto; }
+.scene-wrap { flex: 1 1 auto; min-height: 0; position: relative; display: flex; justify-content: center; align-items: center; }
+#game.tall .scene-wrap { flex: 0 0 auto; }
+#scene { display: block; touch-action: pan-y; }
+#hit { position: absolute; touch-action: none; }
+.goal.warm-line { color: var(--ember); }
+.bar { min-height: 64px; display: grid; align-items: center; padding-block: 8px calc(10px + env(safe-area-inset-bottom, 0px)); }
+.progress { display: flex; gap: 10px; justify-content: center; align-items: center; color: var(--soft); font-size: 16px; font-weight: 600; }
+.progress i { width: 14px; height: 14px; border-radius: 3px; border: 2px solid var(--line); display: inline-block; }
+.progress i.done { background: var(--ember); border-color: var(--ember); box-shadow: 0 0 10px rgba(255,176,82,.6); }
+.progress i.now { border-color: var(--frost); }
+.next { width: 100%; min-height: 58px; border: 0; border-radius: 16px; background: var(--ember); color: #2a1606; font-weight: 700; font-size: 21px; cursor: pointer; box-shadow: 0 6px 24px rgba(255,150,60,.35); animation: rise .35s ease-out; }
+@keyframes rise { from { transform: translateY(14px); opacity: 0; } }
+.restart-ask { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; font-size: 16px; color: var(--soft); }
+.restart-ask button { border: 1px solid var(--line); background: var(--slate); color: var(--text); border-radius: 999px; padding: 6px 14px; font-size: 15px; cursor: pointer; }
+
+/* ---- observer screens ---- */
+.sheet { padding-block: 20px 40px; display: grid; gap: 18px; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--soft); }
+h1 { font-size: 26px; line-height: 1.15; margin: 0; text-wrap: balance; font-weight: 700; }
+h2 { font-size: 19px; margin: 0; font-weight: 600; text-wrap: balance; }
+p { margin: 0; color: var(--soft); max-width: 62ch; }
+.choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { border: 1px solid var(--line); background: var(--slate); color: var(--text); border-radius: 999px; padding: 8px 14px; font-size: 16px; cursor: pointer; }
+.chip[aria-pressed="true"] { border-color: var(--ember); background: #3a2a18; }
+.go { border: 0; border-radius: 12px; background: var(--ember); color: #2a1606; font-weight: 700; font-size: 18px; padding: 14px 18px; cursor: pointer; }
+.go:disabled { opacity: .45; cursor: default; }
+.quiet { border: 1px solid var(--line); background: transparent; color: var(--soft); border-radius: 10px; padding: 10px 14px; font-size: 15px; cursor: pointer; }
+.field { display: grid; gap: 6px; }
+.field label { font-weight: 600; }
+textarea, input[type=text], select { width: 100%; box-sizing: border-box; background: var(--slate); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font: 16px/1.4 var(--display); }
+textarea { min-height: 72px; resize: vertical; }
+.summary { font-family: var(--mono); font-size: 13px; background: var(--slate); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 4px; overflow-x: auto; }
+.summary .k { color: var(--soft); }
+.ok { color: var(--good); }
+.status { font-family: var(--mono); font-size: 12px; color: var(--soft); }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+table { border-collapse: collapse; font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; min-width: 640px; width: 100%; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--soft); font-weight: 500; }
+.windows { display: flex; gap: 14px; justify-content: center; padding-block: 10px; }
+.windows span { width: 46px; height: 46px; border-radius: 6px; background: radial-gradient(circle at 50% 60%, #ffe2a0, #ff9a3c 60%, #7a3a12); box-shadow: 0 0 22px rgba(255,160,70,.6); }
+@media (prefers-reduced-motion: reduce) { .next { animation: none; } .vane .arrow { transition: none; } .vane.pulse .ring { animation: none; } }
+
+.obs summary { color: var(--soft); cursor: pointer; font-size: 15px; } .obs { display: grid; gap: 12px; } .obs[open] { gap: 14px; }
+#play { display: flex; flex-direction: column; height: 100%; overflow: hidden; user-select: none; -webkit-user-select: none; }
+.hud { grid-template-columns: 40px 1fr 40px; min-height: 56px; }
+.goal { display: grid; gap: 2px; }
+.goal .rule { font-size: 13px; font-weight: 600; color: var(--ember); letter-spacing: .01em; }
+.tag { display: grid; justify-items: end; }
+.meter { min-height: 26px; display: flex; gap: 10px; justify-content: center; align-items: center; flex: 0 0 auto; }
+.score { font-weight: 700; font-size: 22px; color: var(--ember); font-variant-numeric: tabular-nums; }
+.boardno { font-weight: 600; font-size: 15px; color: var(--soft); }
+.fs-chip { font-size: 13px; font-weight: 700; color: var(--soft); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-variant-numeric: tabular-nums; }
+.fs-chip.lit { color: #2a1606; background: var(--ember); border-color: var(--ember); box-shadow: 0 0 10px rgba(255,160,70,.5); }
+#cv { display: block; touch-action: none; }
+.scene-wrap { flex: 1 1 auto; min-height: 0; display: flex; justify-content: center; align-items: center; position: relative; }
+.status-line { text-align: center; color: var(--soft); font-weight: 600; font-size: 17px; min-height: 22px; }
+.status-line.good { color: var(--ember); } .status-line.bad { color: #9fd3e6; }
+.status-sub { text-align: center; color: var(--text); font-weight: 600; font-size: 15px; min-height: 20px; }
+.bar { display: grid; gap: 2px; }
+#after { position: absolute; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; z-index: 2; }
+/* the two choices: one style, one size, side by side; neither is the highlighted default */
+.choice { height: 100%; border-radius: 14px; border: 2px solid var(--ember); background: #2a2216; color: var(--text); font: 700 18px/1.1 var(--display); cursor: pointer; padding: 0 8px; }
+.choice:active { background: #3a2a18; }
+.stepper { display: flex; align-items: center; gap: 12px; } .stepper output { font-size: 22px; font-weight: 700; min-width: 2ch; text-align: center; font-variant-numeric: tabular-nums; }
+.stepper .quiet { min-width: 48px; font-size: 20px; padding: 6px 12px; }
+.sess { padding: 8px 0; border-bottom: 1px solid var(--line); } .sess:last-child { border-bottom: 0; }
+.summary { white-space: normal; }
+#obsmenu .quiet { text-align: left; }
+</style>
+<style>
+/* Q-013 web test shell: hides the observer-only parts of Q-012R and styles the consent, code and thank-you screens */
+#setup, #card { display: none !important; }
+#obs-assist, #done-summary { display: none !important; }
+.w-list { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
+.w-list li { line-height: 1.4; }
+.w-check { display: flex; gap: 10px; align-items: flex-start; font-weight: 600; line-height: 1.35; }
+.w-check input { width: 22px; height: 22px; margin: 0; flex: 0 0 auto; accent-color: var(--ember); }
+.w-warn { color: #ffb4a8; font-weight: 600; min-height: 1.2em; }
+.w-fine { color: var(--soft); font-size: 13px; }
+#w-code-in { text-transform: uppercase; letter-spacing: .12em; font-size: 20px; }
+.go[disabled] { opacity: .45; cursor: default; }
+#w-send-status.ok { color: #9be3a8; font-weight: 600; }
+#w-send-status.bad { color: #ffb4a8; font-weight: 600; }
+</style>
+</head><body>
+<section id="w-start" class="col pad sheet" hidden>
+  <div class="eyebrow">Wintermere · game test</div>
+  <h1 id="w-start-title">Before you play</h1>
+  <p id="w-back-note" hidden>Welcome back. This is a second visit with the same invitation.</p>
+  <p>This is an early prototype of a puzzle game. We are testing the game, not you, and there is no right way to play.</p>
+  <ul class="w-list">
+    <li>It takes about 15 minutes at most. The test ends by itself when the time is up.</li>
+    <li>The game records your moves, their timing, your screen size and your answers to five short questions at the end. It does not record your name, email, contacts or location. Please don't type personal details in the answers. (As with any website, the hosting services see your connection's IP address; the game does not store it.)</li>
+    <li>Results go to the developer's private spreadsheet under a random code, are kept for up to 90 days for this test, and are then deleted. To have yours deleted sooner, email ramovicdigital.support@gmail.com with the code from your invitation.</li>
+    <li>You can stop at any time: tap ← and "I'm done", or just close the page.</li>
+    <li>No account, no purchases, no ads.</li>
+  </ul>
+  <p class="w-warn" id="w-storage-note" hidden>This browser is not saving data. Please keep this page open until it says your results arrived.</p>
+  <label class="w-check"><input type="checkbox" id="w-agree"> <span>I am 18 or older and I agree to take part.</span></label>
+  <button class="go" type="button" id="w-go" disabled>Start</button>
+  <p class="w-fine">Ramovic Digital · Wintermere is in development; this test page is not linked from the website.</p>
+</section>
+
+<section id="w-code" class="col pad sheet" hidden>
+  <div class="eyebrow">Wintermere · game test</div>
+  <h1>Your invitation code</h1>
+  <p>This test is by invitation. Type the 8-character code from your invitation, or open the full link you received.</p>
+  <div class="field"><label for="w-code-in">Code</label><input type="text" id="w-code-in" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="12"></div>
+  <p class="w-warn" id="w-code-msg" aria-live="polite"></p>
+  <button class="go" type="button" id="w-code-go">Continue</button>
+</section>
+
+<section id="w-resume" class="col pad sheet" hidden>
+  <div class="eyebrow">Wintermere · game test</div>
+  <h1>Your game is still open</h1>
+  <p>Carry on where you left off. The street you were on starts again from its beginning.</p>
+  <button class="go" type="button" id="w-resume-go">Continue</button>
+</section>
+
+<section id="w-thanks" class="col pad sheet" hidden>
+  <div class="eyebrow">Wintermere · game test</div>
+  <h1>Thank you</h1>
+  <p id="w-send-status" aria-live="polite">Sending your results…</p>
+  <div class="choices" id="w-send-actions" hidden>
+    <button class="quiet" type="button" id="w-retry">Try again</button>
+    <button class="quiet" type="button" id="w-save">Save a copy</button>
+  </div>
+  <p class="w-fine" id="w-save-note" hidden></p>
+</section>
+
+<section id="w-closed" class="col pad sheet" hidden>
+  <div class="eyebrow">Wintermere · game test</div>
+  <h1>This test has ended</h1>
+  <p>Thank you for your interest. The test is closed.</p>
+</section>
+<section id="setup" class="col pad sheet">
+  <div class="eyebrow">Wintermere · Firestorm two-street prototype · Q-012R test-harness repair</div>
+  <h1>Set up a session</h1>
+  <p>One player, two boards. Street 1 is the same for everyone. After the first win the player chooses to go on or stop; the second board is the same playable board in both arms, framed as Round 2 (P0) or as a newly unlocked Street 2 (P1). The arm comes from the pre-assigned list and is never shown to the player.</p>
+  <div class="field" id="resume-box" hidden><label>Unfinished session on this phone</label>
+    <p id="resume-text"></p>
+    <div class="choices"><button class="go" type="button" id="resume">Resume</button><button class="quiet" type="button" id="reset">End it and reset</button></div></div>
+  <div class="field"><label for="pcode">Player code</label><input type="text" id="pcode" autocomplete="off" spellcheck="false"></div>
+  <div class="field"><label for="slot">Slot in the pre-assigned list (1 to 16)</label><input type="text" id="slot" inputmode="numeric" autocomplete="off"><p id="slot-note"></p></div>
+  <div class="field"><label>Visit</label>
+    <div class="choices" id="visit" role="group">
+      <button class="chip" type="button" data-v="first" aria-pressed="true">First visit</button>
+      <button class="chip" type="button" data-v="followup">Follow-up visit (same player code)</button>
+    </div></div>
+  <details class="obs"><summary>Session settings</summary>
+    <div class="field"><label>Outcome preview while dragging (assist; off unless you are testing it)</label>
+      <div class="choices" id="assist" role="group">
+        <button class="chip" type="button" data-v="off" aria-pressed="true">Off</button>
+        <button class="chip" type="button" data-v="preview">Show what would burn</button>
+      </div></div>
+  </details>
+  <button class="go" type="button" id="begin">Start, then hand the phone over</button>
+  <details class="obs" id="solo"><summary>Play it yourself (logged as a practice run)</summary>
+    <div class="choices">
+      <button class="quiet" type="button" data-solo="P0">P0 · Round 2 framing</button>
+      <button class="quiet" type="button" data-solo="P1">P1 · Street 2 framing</button>
+    </div>
+  </details>
+  <details class="obs" id="results"><summary>Results</summary>
+    <div class="summary" id="results-list">Nothing yet.</div>
+    <div class="choices"><button class="quiet" type="button" id="copy-all">Copy all as text</button><button class="quiet" type="button" id="download-all">Download all</button></div>
+    <p id="copy-status"></p>
+  </details>
+  <p class="status" id="store-status">Saving: checking…</p>
+</section>
+
+<section id="card" class="col pad sheet" hidden>
+  <div class="eyebrow">Ready</div>
+  <h1>Hello</h1>
+  <p>Play for as long as you like. You can stop whenever the game offers it.</p>
+  <button class="go" type="button" id="card-go">Start</button>
+</section>
+
+<section id="play" class="col" hidden>
+  <div class="hud pad">
+    <button class="restart" type="button" id="back" aria-label="Observer menu">←</button>
+    <div class="goal" id="goal"><span class="rule" id="goal-rule">Firestorm: 2+ lines and 2+ pinecones in one move</span></div>
+    <div class="tag" id="tag"></div>
+  </div>
+  <div class="meter pad" id="meter"></div>
+  <div class="scene-wrap" id="wrap"><canvas id="cv"></canvas>
+    <div class="after" id="after" hidden><button class="choice" type="button" id="opt-stop">Stop here</button><button class="choice" type="button" id="opt-go">Next</button></div></div>
+  <div class="bar pad">
+    <div class="status-line" id="status"></div>
+    <div class="status-sub" id="status-sub"></div>
+  </div>
+</section>
+
+<section id="obsmenu" class="col pad sheet" hidden>
+  <div class="eyebrow">Observer</div>
+  <h1>Paused</h1>
+  <p id="obs-where"></p>
+  <button class="go" type="button" id="obs-back">Back to the game</button>
+  <button class="quiet" type="button" id="obs-assist">Show the win (assisted: logged apart from natural wins)</button>
+  <button class="quiet" type="button" id="obs-end">End the session here</button>
+</section>
+
+<section id="done" class="col pad sheet" hidden>
+  <div class="eyebrow" id="done-eyebrow">Finished</div>
+  <h1>Thanks for playing</h1>
+  <p>Please hand the phone back.</p>
+  <details class="obs" id="notes" open><summary>Observer notes (after the run)</summary>
+    <div class="field"><label for="o-trying">What were you trying to do?</label><textarea id="o-trying"></textarea></div>
+    <div class="field"><label for="o-best">The best moment, and why it happened</label><textarea id="o-best"></textarea></div>
+    <div class="field"><label for="o-planned">Did you plan anything ahead?</label><textarea id="o-planned"></textarea></div>
+    <div class="field"><label for="o-again">Would you play this again, and why?</label><textarea id="o-again"></textarea></div>
+    <div class="field"><label for="o-windows">What do the yellow windows mean?</label><textarea id="o-windows"></textarea></div>
+    <div class="field"><label for="o-differently">What would you do differently?</label><textarea id="o-differently"></textarea></div>
+    <div class="field"><label for="o-neutral">"What were you hoping would happen?" (only if asked at a natural rest; leave empty otherwise)</label><textarea id="o-neutral"></textarea></div>
+    <div class="field"><label>Self-described plans heard</label><div class="stepper" data-n="plans"><button class="quiet" type="button" data-d="-1" aria-label="One fewer">−</button><output>0</output><button class="quiet" type="button" data-d="1" aria-label="One more">+</button></div></div>
+    <div class="field"><label>Executed setups seen (a near-line built on purpose)</label><div class="stepper" data-n="setups"><button class="quiet" type="button" data-d="-1" aria-label="One fewer">−</button><output>0</output><button class="quiet" type="button" data-d="1" aria-label="One more">+</button></div></div>
+    <div class="field"><label>Surprise explosions (burns they visibly did not expect)</label><div class="stepper" data-n="surprises"><button class="quiet" type="button" data-d="-1" aria-label="One fewer">−</button><output>0</output><button class="quiet" type="button" data-d="1" aria-label="One more">+</button></div></div>
+    <div class="field"><label>Frustration signs</label><div class="stepper" data-n="frustration"><button class="quiet" type="button" data-d="-1" aria-label="One fewer">−</button><output>0</output><button class="quiet" type="button" data-d="1" aria-label="One more">+</button></div></div>
+    <div class="field"><label>Asked for another board after stopping?</label><div class="choices" data-q="askedMore" role="group"><button class="chip" type="button" data-v="yes">Yes</button><button class="chip" type="button" data-v="no">No</button></div></div>
+    <div class="field"><label>Follow-up visit offered / accepted</label><div class="choices" data-q="followup" role="group"><button class="chip" type="button" data-v="not_offered">Not offered</button><button class="chip" type="button" data-v="accepted">Offered, accepted</button><button class="chip" type="button" data-v="declined">Offered, declined</button></div></div>
+    <div class="field"><label for="o-notes">Other notes</label><textarea id="o-notes"></textarea></div>
+  </details>
+  <div class="summary" id="done-summary"></div>
+  <button class="go" type="button" id="done-go">Save notes and go back to setup</button>
+</section>
+
+<script>// Core Loop Lab rules (Oct 22): Fireline, Gust & Glow, Hearthfall. Pure functions, no drawing.
+// The page and the Node solvers load this same file, so a level verified by the solver plays the same on the phone.
+// Grid coordinates: x 0..W-1 left to right, y 0..H-1 top to bottom. Patterns are rows, top first.
+(function (root) {
+  const D4 = [[0, -1], [1, 0], [0, 1], [-1, 0]];                       // up, right, down, left
+  const D8 = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
+  const K = (x, y) => x + ',' + y;
+  const inb = (s, x, y) => x >= 0 && y >= 0 && x < s.W && y < s.H;
+  const at = (s, x, y) => s.g[y][x];
+  const set = (s, x, y, c) => { s.g[y][x] = c; };
+
+  // ------------------------------------------------------------------ FIRELINE
+  // Cells: G grass (fuel), P pinecone (fuel; the fire passing it refunds 2 heat and bursts into its 8 neighbours),
+  // S snow over grass (not drawable; melts to G when a burning cell is beside it), R rock, H home (cold), h home (warm),
+  // '.' ground, '#' ash, F the flame's start (already burnt).
+  // A line: from the flame through orthogonally adjacent unburnt fuel, no cell twice; each cell costs 1 heat
+  // (it must be paid before entering), a pinecone gives 2 back as the fire passes.
+  const FL = {};
+  FL.load = (lv) => {
+    const g = lv.pattern.map(r => r.split('')); let flame = null;
+    g.forEach((row, y) => row.forEach((c, x) => { if (c === 'F') { flame = [x, y]; row[x] = '#'; } }));
+    return { W: g[0].length, H: g.length, g, flame, heat: lv.heat, homes: g.flat().filter(c => c === 'H').length, lit: 0 };
+  };
+  FL.clone = (s) => ({ W: s.W, H: s.H, g: s.g.map(r => r.slice()), flame: s.flame.slice(), heat: s.heat, homes: s.homes, lit: s.lit });
+  FL.isFuel = (c) => c === 'G' || c === 'P';
+  // Can the line (already `path`) be extended by (x, y)? Returns the heat left after entering, or -1.
+  FL.heatAlong = (s, path) => { let h = s.heat; for (const [x, y] of path) { if (h < 1) return -1; h -= 1; if (at(s, x, y) === 'P') h += 2; } return h; };
+  FL.canExtend = (s, path, x, y) => {
+    if (!inb(s, x, y) || !FL.isFuel(at(s, x, y))) return false;
+    const [hx, hy] = path.length ? path[path.length - 1] : s.flame;
+    if (Math.abs(hx - x) + Math.abs(hy - y) !== 1) return false;
+    if (path.some(([a, b]) => a === x && b === y)) return false;
+    return FL.heatAlong(s, path) >= 1;
+  };
+  // Run a line. Returns { state, steps } where each step lists what happened as the fire entered one line cell.
+  FL.run = (s0, path) => {
+    const s = FL.clone(s0), steps = [], reserved = new Set(path.map(([x, y]) => K(x, y)));
+    const burnCell = (x, y, ev) => {   // a cell burns: snow beside it melts, a home beside it warms
+      for (const [dx, dy] of D4) { const nx = x + dx, ny = y + dy; if (!inb(s, nx, ny)) continue; const c = at(s, nx, ny);
+        if (c === 'S') { set(s, nx, ny, 'G'); ev.melted.push([nx, ny]); }
+        else if (c === 'H') { set(s, nx, ny, 'h'); s.lit++; ev.lit.push([nx, ny]); } }
+    };
+    for (let i = 0; i < path.length; i++) {
+      const [x, y] = path[i], c = at(s, x, y), ev = { cell: [x, y], kind: c, bursts: [], melted: [], lit: [], heat: 0 };
+      if (s.heat < 1 || !FL.isFuel(c)) throw new Error('invalid line at ' + i);
+      s.heat -= 1; set(s, x, y, '#'); reserved.delete(K(x, y)); burnCell(x, y, ev);
+      if (c === 'P') {
+        s.heat += 2;
+        // the burst: its 8 neighbours burn (fuel), melt (snow) or warm (home); a pinecone caught by it bursts too
+        const q = [[x, y, 1]];
+        while (q.length) { const [bx, by, d] = q.shift();
+          for (const [dx, dy] of D8) { const nx = bx + dx, ny = by + dy; if (!inb(s, nx, ny) || reserved.has(K(nx, ny))) continue; const n = at(s, nx, ny);
+            if (n === 'G' || n === 'P') { set(s, nx, ny, '#'); ev.bursts.push([nx, ny, d]); burnCell(nx, ny, ev); if (n === 'P') q.push([nx, ny, d + 1]); }
+            else if (n === 'S') { set(s, nx, ny, 'G'); ev.melted.push([nx, ny]); }
+            else if (n === 'H') { set(s, nx, ny, 'h'); s.lit++; ev.lit.push([nx, ny]); } } }
+      }
+      ev.heat = s.heat; steps.push(ev);
+    }
+    if (path.length) s.flame = path[path.length - 1].slice();
+    return { state: s, steps };
+  };
+  FL.won = (s) => s.lit >= s.homes;
+  FL.stuck = (s) => !FL.won(s) && (s.heat < 1 || !D4.some(([dx, dy]) => inb(s, s.flame[0] + dx, s.flame[1] + dy) && FL.isFuel(at(s, s.flame[0] + dx, s.flame[1] + dy))));
+  // every legal line from the flame (simple paths within the heat), for the solver
+  FL.lines = (s, maxLen) => {
+    const out = [], path = [];
+    const rec = () => { const [hx, hy] = path.length ? path[path.length - 1] : s.flame;
+      for (const [dx, dy] of D4) { const x = hx + dx, y = hy + dy; if (FL.canExtend(s, path, x, y)) { path.push([x, y]); out.push(path.slice()); if (!maxLen || path.length < maxLen) rec(); path.pop(); } } };
+    rec(); return out;
+  };
+  FL.key = (s) => s.g.map(r => r.join('')).join('/') + '|' + s.flame + '|' + s.heat;
+
+  // ------------------------------------------------------------------ GUST & GLOW
+  // Cells: G grass (burns 1 gust), L log (burns 3), P pinecone (burns 1; bursts into its 8 neighbours the moment it
+  // catches), S snow over grass (melts to G when a burning cell is beside it), R rock, H home, h warm home, '.' ground,
+  // '#' ash, * a fuel cell already burning at the start (the cell under it is given by `under`).
+  const GG = { LIFE: { G: 1, L: 3, P: 1 },   // G and P burn while the fire is on them; L counts gusts
+             DIRS: { up: [0, -1], right: [1, 0], down: [0, 1], left: [-1, 0] } };
+  GG.load = (lv) => {
+    const g = lv.pattern.map(r => r.split('')), burn = g.map(r => r.map(() => 0));
+    const s = { W: g[0].length, H: g.length, g, burn, gusts: lv.gusts, homes: 0, lit: 0, sparked: false };
+    g.forEach((row, y) => row.forEach((c, x) => { if (c === 'H') s.homes++; if (c === '*') { row[x] = lv.under || 'L'; s.sparked = true; burn[y][x] = GG.LIFE[row[x]]; } }));
+    return s;
+  };
+  GG.clone = (s) => ({ W: s.W, H: s.H, g: s.g.map(r => r.slice()), burn: s.burn.map(r => r.slice()), gusts: s.gusts, homes: s.homes, lit: s.lit, sparked: s.sparked });
+  GG.isFuel = (c) => c === 'G' || c === 'L' || c === 'P';
+  GG.burning = (s) => { const o = []; for (let y = 0; y < s.H; y++) for (let x = 0; x < s.W; x++) if (s.burn[y][x] > 0) o.push([x, y]); return o; };
+  // ignite a set of cells (with pinecone bursts chaining), then melt and warm; returns the event
+  function igniteAll(s, list, ev) {
+    const q = [];
+    for (const [x, y, fx, fy] of list) { if (!GG.isFuel(at(s, x, y)) || s.burn[y][x] > 0) continue; s.burn[y][x] = GG.LIFE[at(s, x, y)]; ev.ignited.push([x, y, fx, fy]); if (at(s, x, y) === 'P') q.push([x, y, 1]); }
+    while (q.length) { const [bx, by, d] = q.shift(); ev.bursts.push([bx, by, d]);
+      for (const [dx, dy] of D8) { const nx = bx + dx, ny = by + dy; if (!inb(s, nx, ny)) continue; const n = at(s, nx, ny);
+        if (GG.isFuel(n) && s.burn[ny][nx] === 0) { s.burn[ny][nx] = GG.LIFE[n]; ev.burstLit.push([nx, ny, bx, by, d]); if (n === 'P') q.push([nx, ny, d + 1]); }
+        else if (n === 'S') { set(s, nx, ny, 'G'); ev.melted.push([nx, ny]); }
+        else if (n === 'H') { set(s, nx, ny, 'h'); s.lit++; ev.lit.push([nx, ny]); } } }
+    // snow beside fire melts; a home beside fire warms
+    for (const [x, y] of GG.burning(s)) for (const [dx, dy] of D4) { const nx = x + dx, ny = y + dy; if (!inb(s, nx, ny)) continue; const c = at(s, nx, ny);
+      if (c === 'S') { set(s, nx, ny, 'G'); ev.melted.push([nx, ny]); } else if (c === 'H') { set(s, nx, ny, 'h'); s.lit++; ev.lit.push([nx, ny]); } }
+  }
+  GG.newEvent = () => ({ ignited: [], bursts: [], burstLit: [], melted: [], lit: [], died: [], sources: [], dir: null });
+  GG.canSpark = (s, x, y) => inb(s, x, y) && at(s, x, y) === 'L';   // a spark is laid on a log (firewood); grass catches from fire
+  GG.spark = (s0, x, y) => { const s = GG.clone(s0), ev = GG.newEvent(); if (!GG.canSpark(s, x, y)) return null; s.sparked = true; igniteAll(s, [[x, y, x, y]], ev); return { state: s, ev }; };
+  // one gust: the whole fire leaps one step downwind. Every burning cell throws fire to the next cell that way if it is
+  // unburnt fuel; grass and pinecones the fire leaves become ash (so the fire moves as one shape and cannot go back
+  // over its own ash); a lit log stays lit wherever the fire goes and burns down by one each gust (3 gusts in all), so
+  // it keeps throwing fire. Then pinecone bursts, melting and warming as in igniteAll.
+  GG.gust = (s0, dirName) => {
+    const s = GG.clone(s0), ev = GG.newEvent(), [dx, dy] = GG.DIRS[dirName]; ev.dir = dirName;
+    const B = GG.burning(s); ev.sources = B; ev.blocked = [];
+    const N = new Map();
+    for (const [x, y] of B) { const tx = x + dx, ty = y + dy;
+      if (inb(s, tx, ty) && GG.isFuel(at(s, tx, ty))) N.set(tx + ',' + ty, [tx, ty, x, y]); else ev.blocked.push([tx, ty, x, y]); }
+    for (const [x, y] of B) { const c = at(s, x, y);
+      if (c === 'L') { s.burn[y][x]--; if (s.burn[y][x] <= 0) { s.burn[y][x] = 0; set(s, x, y, '#'); ev.died.push([x, y]); N.delete(x + ',' + y); } }
+      else if (!N.has(x + ',' + y)) { s.burn[y][x] = 0; set(s, x, y, '#'); ev.died.push([x, y]); } }
+    ev.moved = [...N.values()].filter(([tx, ty]) => s.burn[ty][tx] > 0);   // fire that stays on a cell it was already on
+    igniteAll(s, [...N.values()].filter(([tx, ty]) => s.burn[ty][tx] === 0), ev);
+    s.gusts--;
+    return { state: s, ev };
+  };
+  GG.won = (s) => s.lit >= s.homes;
+  GG.lost = (s) => !GG.won(s) && s.sparked && (s.gusts <= 0 || GG.burning(s).length === 0);
+  GG.key = (s) => s.g.map(r => r.join('')).join('/') + '|' + s.burn.map(r => r.join('')).join('') + '|' + s.gusts + s.sparked;
+
+  // ------------------------------------------------------------------ HEARTHFALL
+  // 8x8 woodshed. Cells: 0 empty, 1 log, 2 pinecone (in chains-off mode a pinecone is an ordinary log and is drawn
+  // as one). Placing a piece fills cells; every full row and column catches; with chains on, every pinecone that burns
+  // bursts into its 8 neighbours, and pinecones caught by a burst burst too. Everything that burned clears.
+  const HF = { N: 8, PINE: 0.15 };
+  HF.SHAPES = [
+    [[0, 0]], [[0, 0], [1, 0]], [[0, 0], [0, 1]], [[0, 0], [1, 0], [2, 0]], [[0, 0], [0, 1], [0, 2]],
+    [[0, 0], [1, 0], [2, 0], [3, 0]], [[0, 0], [0, 1], [0, 2], [0, 3]], [[0, 0], [1, 0], [0, 1], [1, 1]],
+    [[0, 0], [0, 1], [1, 1]], [[1, 0], [0, 1], [1, 1]], [[0, 0], [1, 0], [0, 1]], [[0, 0], [1, 0], [1, 1]],
+    [[0, 0], [0, 1], [0, 2], [1, 2]], [[1, 0], [1, 1], [1, 2], [0, 2]], [[0, 0], [1, 0], [2, 0], [1, 1]],
+    [[0, 0], [1, 0], [1, 1], [2, 1]], [[1, 0], [2, 0], [0, 1], [1, 1]], [[1, 0], [0, 1], [1, 1], [2, 1], [1, 2]],
+    [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1], [0, 2], [1, 2], [2, 2]],
+  ];
+  HF.rng = (seed) => { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
+  HF.newGame = (seed) => ({ b: Array.from({ length: HF.N }, () => new Array(HF.N).fill(0)), rnd: HF.rng(seed), seed, score: 0, burned: 0, tray: [], placed: 0, over: false });
+  HF.fits = (g, piece, x, y) => piece.cells.every(([dx, dy]) => { const cx = x + dx, cy = y + dy; return cx >= 0 && cy >= 0 && cx < HF.N && cy < HF.N && g.b[cy][cx] === 0; });
+  HF.anyFit = (g, piece) => { for (let y = 0; y < HF.N; y++) for (let x = 0; x < HF.N; x++) if (HF.fits(g, piece, x, y)) return true; return false; };
+  // a new tray of three, the same draws whatever the mode; at least one piece fits and at least one cell is a pinecone
+  HF.deal = (g) => {
+    let tray;
+    for (let tries = 0; tries < 30; tries++) {
+      tray = [0, 1, 2].map(() => { const sh = HF.SHAPES[Math.floor(g.rnd() * HF.SHAPES.length)]; return { cells: sh, pine: sh.map(() => g.rnd() < HF.PINE) }; });
+      if (tray.some(p => HF.anyFit(g, p))) break;
+    }
+    if (!tray.some(p => p.pine.some(Boolean))) { const p = tray[Math.floor(g.rnd() * 3)]; p.pine[Math.floor(g.rnd() * p.cells.length)] = true; }
+    g.tray = tray;
+  };
+  // place tray piece i at (x, y); returns the event { placed, lines, waves, cleared, score } or null
+  HF.place = (g, i, x, y, chains) => {
+    const piece = g.tray[i]; if (!piece || !HF.fits(g, piece, x, y)) return null;
+    const placed = piece.cells.map(([dx, dy], k) => { g.b[y + dy][x + dx] = piece.pine[k] ? 2 : 1; return [x + dx, y + dy]; });
+    g.tray[i] = null; g.placed++;
+    const rows = [], cols = [];
+    for (let r = 0; r < HF.N; r++) if (g.b[r].every(v => v > 0)) rows.push(r);
+    for (let c = 0; c < HF.N; c++) if (g.b.every(row => row[c] > 0)) cols.push(c);
+    const depth = new Map(), wave0 = [];
+    rows.forEach(r => { for (let c = 0; c < HF.N; c++) if (!depth.has(K(c, r))) { depth.set(K(c, r), 1); wave0.push([c, r]); } });
+    cols.forEach(c => { for (let r = 0; r < HF.N; r++) if (!depth.has(K(c, r))) { depth.set(K(c, r), 1); wave0.push([c, r]); } });
+    const waves = [wave0];
+    if (chains) {
+      let front = wave0.filter(([c, r]) => g.b[r][c] === 2), d = 1;
+      while (front.length) { const next = [];
+        for (const [c, r] of front) for (const [dx, dy] of D8) { const nc = c + dx, nr = r + dy;
+          if (nc < 0 || nr < 0 || nc >= HF.N || nr >= HF.N || g.b[nr][nc] === 0 || depth.has(K(nc, nr))) continue;
+          depth.set(K(nc, nr), d + 1); next.push([nc, nr, c, r]); }
+        if (!next.length) break; waves.push(next); d++; front = next.filter(([c, r]) => g.b[r][c] === 2); }
+    }
+    let gain = placed.length, cleared = 0;
+    depth.forEach((d, k) => { const [c, r] = k.split(',').map(Number); g.b[r][c] = 0; gain += d; cleared++; });
+    if (rows.length + cols.length > 1) gain += 10 * (rows.length + cols.length - 1);   // a double line is worth more
+    g.score += gain; g.burned += cleared;
+    if (g.tray.every(p => !p)) HF.deal(g);
+    g.over = !g.tray.some(p => p && HF.anyFit(g, p));
+    return { placed, rows, cols, waves, cleared, gain, depth: waves.length };
+  };
+
+  const api = { FL, GG, HF, D4, D8 };
+  if (typeof module !== 'undefined') module.exports = api; else root.LOOPS = api;
+})(this);
+</script>
+<script>// Firestorm A/C layer (Q-006, approved Oct 22 2026). Pure functions over the lab's unchanged Hearthfall rules (rules.js, LOOPS.HF).
+// Nothing here writes to a game's board, tray, random stream or score: condition C reads the event HF.place already returned
+// and adds recognition and a bonus on top. Condition A ignores this layer except for silent logging.
+(function (root) {
+  const HF = (root.LOOPS || require('./rules.js')).HF;
+  const N = HF.N;
+  const FS = { BONUS_PER: 5, LINE_CAP: 3, MIN_LINES: 2, MIN_PINES: 2 };
+
+  // the board as it stood after the piece landed and before anything burned
+  FS.landed = (before, piece, x, y) => { const b = before.map(r => r.slice()); piece.cells.forEach(([dx, dy], k) => { b[y + dy][x + dx] = piece.pine[k] ? 2 : 1; }); return b; };
+
+  // classify one placement. e = the event from HF.place; before = the board copied just before the call.
+  // pinecones burned, in ignition order: wave 0 (on a completed line) first, then each later wave; `from` is the pinecone whose burst caught it.
+  FS.classify = (e, before, piece, x, y) => {
+    const b = FS.landed(before, piece, x, y), pines = [];
+    e.waves.forEach((w, wi) => w.forEach(([c, r, fc, fr]) => { if (b[r][c] === 2) pines.push({ c, r, wave: wi, from: wi ? [fc, fr] : null }); }));
+    const lines = e.rows.length + e.cols.length, n = pines.length;
+    const firestorm = lines >= FS.MIN_LINES && n >= FS.MIN_PINES;
+    const bonus = firestorm ? FS.BONUS_PER * Math.min(lines, FS.LINE_CAP) * n : 0;
+    // near-complete lines (6 or 7 of 8 filled, not completed) that lost cells to a burst: the "A3" surprise, logged in both conditions
+    let wrecked = 0;
+    if (e.waves.length > 1) {
+      const burstCells = new Set(); e.waves.slice(1).forEach(w => w.forEach(([c, r]) => burstCells.add(c + ',' + r)));
+      for (let r = 0; r < N; r++) { if (e.rows.includes(r)) continue; const f = b[r].filter(v => v).length; if (f >= 6 && b[r].some((v, c) => v && burstCells.has(c + ',' + r))) wrecked++; }
+      for (let c = 0; c < N; c++) { if (e.cols.includes(c)) continue; let f = 0, hit = false; for (let r = 0; r < N; r++) { if (b[r][c]) { f++; if (burstCells.has(c + ',' + r)) hit = true; } } if (f >= 6 && hit) wrecked++; }
+    }
+    return { lines, pines: n, pineList: pines, firestorm, bonus, depth: e.waves.length, cleared: e.cleared, wrecked };
+  };
+
+  // a throwaway copy of a game for looking ahead: same board and tray, a dead random stream, so the real game is never touched
+  FS.ghost = (g) => ({ b: g.b.map(r => r.slice()), tray: g.tray.map(p => p ? { cells: p.cells, pine: p.pine.slice() } : null), rnd: () => 0.5, seed: g.seed, score: 0, burned: 0, placed: 0, over: false });
+  // what a placement would do, without doing it
+  FS.preview = (g, i, x, y) => { const h = FS.ghost(g), piece = h.tray[i]; if (!piece || !HF.fits(h, piece, x, y)) return null; const before = h.b.map(r => r.slice()); const e = HF.place(h, i, x, y, true); return { e, c: FS.classify(e, before, piece, x, y) }; };
+  // one-move opportunities: every placement of every tray piece that would be a Firestorm right now
+  FS.opportunities = (g) => { const out = []; g.tray.forEach((p, i) => { if (!p) return; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { if (!HF.fits(g, p, x, y)) continue; const r = FS.preview(g, i, x, y); if (r && r.c.firestorm) out.push({ i, x, y, bonus: r.c.bonus, lines: r.c.lines, pines: r.c.pines }); } }); return out; };
+
+  // replay a seed and a list of moves [[i, x, y], ...] with the lab's own functions; returns the game (the exact state a player would see)
+  FS.replay = (seed, moves) => { const g = HF.newGame(seed); HF.deal(g); for (const [i, x, y] of moves) { if (!HF.place(g, i, x, y, true)) throw new Error('illegal move in replay ' + JSON.stringify([i, x, y])); } return g; };
+  FS.boardKey = (g) => g.b.map(r => r.join('')).join('/') + '|' + g.tray.map(p => p ? p.cells.map(c => c.join('')).join('.') + ':' + p.pine.map(v => v ? 1 : 0).join('') : '-').join(' ');
+
+  if (typeof module !== 'undefined') module.exports = FS; else root.FS = FS;
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+// Firestorm two-street prototype, Q-012R test-harness repair (approved Oct 23 2026) of the Q-011 page, which stays unchanged for rollback.
+// Q-012R changes, harness only (setup screen, saving, export), and only these: R1 "Download all" works outside the Claude app as an
+// ordinary browser download with a unique file name, and the setup screen warns DO NOT TEST when this browser cannot save (checked at
+// load and on every later save; an export always includes the session in memory); R2 a follow-up visit starts with an empty code and
+// slot, Start needs a valid code and slot 1-16, a slot or code already used by a first visit is refused, a follow-up must use its
+// first visit's slot when that visit is in this browser, and Visit returns to "First visit" after every session. Rules, play, drawing
+// and the record format are Q-011's. Own version and storage keys, so a Q-011 copy in the same browser is never mixed in.
+// Q-011: Firestorm two-street prototype, Q-011 polish pass (approved Oct 22 2026) of the Q-010 page.
+// Q-011 changes, and only these: (1) the goal "Warm all 3 homes" beside three larger, visibly cold homes, in place of
+// Q-010's goal line above the board (removed: it read as keeping homes warm, and homes never cool here); (2) the pinecone drawn as an original vector cone instead of the image used up
+// to Q-010; (3) after a reload, the Firestorm count on a re-shown win/fail choice counts only the current attempt (plus the
+// count carried into that board), not discarded attempts; (4) the second board's woodpile W2 is seed 1008 after 21 placements.
+// Q-010: Firestorm two-street prototype (Q-009 Revision 2, approved Oct 22 2026). Derived from the Q-007 A/C lab, condition C only.
+// Rules: rules.js (LOOPS.HF, byte-identical to the Core Loop Lab's). Firestorm layer: fs.js (FS, byte-identical to Q-007's).
+// The woodshed, its drawing, burn animation, Firestorm recognition, numbering, banner and bonus are Q-007's code unchanged.
+// New here, and only here: a per-board target of three homes (40 cells each, counted from the board's start), the cottages
+// that show it, a victory moment, the Continue/Stop choice, the second board (the same playable board in both arms; P0 frames
+// it as Round 2 on the same street, P1 as a newly unlocked Street 2), retry with the score restored, a finite finish,
+// resume after a reload, an observer sheet, and the session record.
+const ASSETS = {};
+const DATA = {"TARGET": 120, "HOMES": 3, "PER_HOME": 40, "S1": 7101, "ARMS": ["P1", "P0", "P0", "P1", "P1", "P1", "P0", "P0", "P0", "P1", "P1", "P0", "P1", "P0", "P1", "P0"], "W2": {"seed": 1008, "prefix": [[0, 0, 0], [2, 3, 0], [1, 4, 0], [1, 6, 0], [2, 4, 0], [0, 1, 0], [2, 0, 2], [1, 0, 5], [0, 0, 0], [1, 0, 1], [2, 1, 2], [0, 7, 2], [0, 4, 3], [1, 0, 2], [2, 2, 2], [1, 5, 2], [2, 0, 1], [0, 3, 1], [1, 5, 2], [0, 7, 0], [2, 0, 0]], "key": "00000000/00010000/00000001/11200010/00000000/00000000/00000000/00000000|00.10:10 10.20.01.11:1100 00.10.20.01.11.21.02.12.22:010001000"}};
+const VERSION = 'fs-2s-3';   // Q-012R (Q-011 was fs-2s-2)
+const { HF } = LOOPS;
+const TARGET = DATA.TARGET, PER_HOME = DATA.PER_HOME, HOMES = DATA.HOMES;   // 120, 40, 3
+const IMG = {};
+function loadImages() { return Promise.all(Object.entries(ASSETS).map(([k, src]) => new Promise((res) => { const im = new Image(); im.onload = () => { IMG[k] = im; res(); }; im.onerror = () => res(); im.src = src; }))); }
+const now = () => performance.now(), sleep = (ms) => new Promise(r => setTimeout(r, ms * (window.__FS_FAST__ ? 0 : 1)));
+const $ = (id) => document.getElementById(id);
+const LS_SESSIONS = 'fs2s3_sessions', LS_CURRENT = 'fs2s3_current';   // Q-012R's own keys, so a Q-011 or Q-010 copy in the same browser is never mixed in
+
+// ---------------------------------------------------------------- sound: Q-007's set, plus the Core Loop Lab's existing warm chord for the win
+let AC = null, MASTER = null;
+function audio() { if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); MASTER = AC.createDynamicsCompressor(); MASTER.connect(AC.destination); } catch (e) { AC = null; } } if (AC && AC.state === 'suspended') AC.resume(); return AC; }
+function noise(dur, f0, f1, vol, type, q) {
+  const ac = audio(); if (!ac) return;
+  const n = Math.floor(ac.sampleRate * dur), buf = ac.createBuffer(1, n, ac.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (type === 'crackle' ? (Math.random() < 0.07 ? 1 : 0.16) : 1);
+  const src = ac.createBufferSource(); src.buffer = buf;
+  const f = ac.createBiquadFilter(); f.type = type === 'low' ? 'lowpass' : type === 'high' ? 'highpass' : 'bandpass'; f.Q.value = q || 0.9; f.frequency.setValueAtTime(f0, ac.currentTime); f.frequency.exponentialRampToValueAtTime(f1, ac.currentTime + dur);
+  const g = ac.createGain(); g.gain.setValueAtTime(0.0001, ac.currentTime); g.gain.exponentialRampToValueAtTime(vol, ac.currentTime + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
+  src.connect(f); f.connect(g); g.connect(MASTER); src.start();
+}
+function tone(freq, dur, vol, delay, type, to) {
+  const ac = audio(); if (!ac) return; const t = ac.currentTime + (delay || 0);
+  const o = ac.createOscillator(), g = ac.createGain(); o.type = type || 'sine'; o.frequency.setValueAtTime(freq, t); if (to) o.frequency.exponentialRampToValueAtTime(to, t + dur);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(MASTER); o.start(t); o.stop(t + dur + 0.05);
+}
+const SND = {
+  tick: () => tone(1500, 0.04, 0.025),
+  crackle: (n) => noise(Math.min(1.2, 0.25 + n * 0.04), 1800, 700, Math.min(0.28, 0.08 + n * 0.01), 'crackle'),
+  pop: (d) => { noise(0.16, 900, 300, 0.2, 'low'); tone(130 - Math.min(d, 4) * 12, 0.22, 0.16, 0, 'sine', 60); },
+  clack: () => { noise(0.07, 1200, 500, 0.16, 'low'); tone(240, 0.06, 0.06, 0, 'triangle', 160); },
+  fail: () => { tone(330, 0.3, 0.05, 0, 'triangle', 247); tone(247, 0.5, 0.05, 0.25, 'triangle', 196); },
+  window: () => tone(880, 0.25, 0.05, 0, 'triangle', 1320),
+  firestorm: () => { noise(0.9, 140, 700, 0.24, 'low'); tone(196, 1.2, 0.07); tone(294, 1.2, 0.06, 0.1); tone(392, 1.4, 0.06, 0.2); tone(587, 1.6, 0.05, 0.32); },
+  warm: () => { tone(392, 0.9, 0.06); tone(523, 0.9, 0.05, 0.12); tone(659, 1.2, 0.05, 0.24); tone(784, 1.4, 0.035, 0.38); },   // the Core Loop Lab's own
+};
+
+// ---------------------------------------------------------------- the session record: saved to the page (Claude can read it) and to this browser
+let session = null;
+function newId() { const a = new Uint8Array(6); (crypto || window.msCrypto).getRandomValues(a); return 's' + Date.now().toString(36) + Array.from(a, b => b.toString(16).padStart(2, '0')).join(''); }
+function deviceInfo() { return { w: innerWidth, h: innerHeight, dpr: devicePixelRatio || 1, touch: ('ontouchstart' in window) || navigator.maxTouchPoints > 0, ua: navigator.userAgent.slice(0, 160) }; }
+const sms = () => session ? Date.now() - session.t0 : 0;      // session clock, ms, survives a reload
+let DB = null, storeState = 'checking';
+function setStoreStatus() { const el = $('store-status'); if (!el) return; const bad = storeState === 'none' || storeState === 'lost';   // Q-012R R1: the two DO NOT TEST states
+  el.textContent = storeState === 'online' ? 'Saving: to this page (Claude can read the results).' : storeState === 'local' ? 'Saving: in this browser only. Use "Download all" after each player.' : storeState === 'none' ? 'DO NOT TEST HERE: this browser cannot save sessions (storage is blocked). Use another browser or tab.' : storeState === 'lost' ? 'DO NOT CONTINUE: this browser stopped saving sessions. Use "Download all" now (it includes the current session), then switch browser.' : storeState === 'error' ? 'Saving to the page failed; this browser keeps a copy. Use "Copy all as text".' : 'Saving: checking…';
+  el.style.cssText = bad ? 'color:#ffd2cc;background:#5a1712;border:2px solid #ff6b5b;border-radius:10px;padding:10px 12px;font-weight:700' : '';
+  if (bad && el.parentNode.firstElementChild !== el) el.parentNode.insertBefore(el, el.parentNode.firstElementChild); }   // the warning moves to the top of the setup screen
+function localSessions() { try { return Object.values(JSON.parse(localStorage.getItem(LS_SESSIONS) || '{}')); } catch (e) { return []; } }
+async function allStored() {
+  let list = localSessions();
+  if (DB) { try { const snap = await DB.collection('sessions').get(); const byId = {}; list.forEach(s => byId[s.id] = s); snap.docs.forEach(d => { const v = d.data(); if (v && v.id) byId[v.id] = v; }); list = Object.values(byId); } catch (e) {} }
+  if (session) list = list.filter(s => s.id !== session.id).concat([JSON.parse(JSON.stringify(session))]);   // Q-012R R1: the session in memory, even if a save failed
+  return list.sort((a, b) => String(a.started).localeCompare(String(b.started)));
+}
+(async () => { try { if (window.claude && window.claude.use) DB = await window.claude.use('db'); } catch (e) { DB = null; } storeState = DB ? 'online' : canStore() ? 'local' : 'none'; setStoreStatus(); refreshSetup(); })();
+function canStore() { try { localStorage.setItem('fs2s3_probe', '1'); const ok = localStorage.getItem('fs2s3_probe') === '1'; localStorage.removeItem('fs2s3_probe'); return ok; } catch (e) { return false; } }   // Q-012R R1
+let writeChain = Promise.resolve(), saveTimer = null;
+function backupLocal() { if (!session) return; try { const all = JSON.parse(localStorage.getItem(LS_SESSIONS) || '{}'); all[session.id] = session; localStorage.setItem(LS_SESSIONS, JSON.stringify(all)); if (!session.finished) localStorage.setItem(LS_CURRENT, session.id); else if (localStorage.getItem(LS_CURRENT) === session.id) localStorage.removeItem(LS_CURRENT); } catch (e) { if (!DB && storeState !== 'none') { storeState = 'lost'; setStoreStatus(); } } }   // Q-012R R1: warn
+function saveSession() {
+  if (!session) return Promise.resolve(); clearTimeout(saveTimer); saveTimer = null; backupLocal();
+  if (!DB) return Promise.resolve(false);
+  const doc = JSON.parse(JSON.stringify(session)), id = session.id;
+  writeChain = writeChain.then(() => DB.doc('sessions/' + id).set(doc)).then(() => true).catch(async (e) => {
+    if (e && e.code === 'unavailable') { await new Promise(r => setTimeout(r, 600 + Math.random() * 600)); try { await DB.doc('sessions/' + id).set(doc); return true; } catch (e2) {} }
+    storeState = 'error'; setStoreStatus(); return false; });
+  return writeChain;
+}
+function saveSoon() { backupLocal(); if (!saveTimer) saveTimer = setTimeout(saveSession, 1500); }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && session) saveSession(); });
+
+// ---------------------------------------------------------------- canvas, layout (Q-007's)
+const cv = $('cv'), ctx = cv.getContext('2d');
+let dpr = 1, CW = 0, CH = 0, cell = 40, ox = 0, oy = 0;
+let game = null;
+function fit() {
+  if ($('play').hidden || !game) return;
+  const wrap = $('wrap'), w = Math.min(wrap.clientWidth || innerWidth, 520), h = wrap.clientHeight || 400;
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const L = game.layout(w, h); CW = L.w; CH = L.h; cell = L.cell; ox = L.ox; oy = L.oy;
+  cv.style.width = CW + 'px'; cv.style.height = CH + 'px'; cv.width = Math.round(CW * dpr); cv.height = Math.round(CH * dpr);
+  placeAfter();
+}
+addEventListener('resize', () => requestAnimationFrame(fit));
+if (window.visualViewport) visualViewport.addEventListener('resize', () => requestAnimationFrame(fit));
+if (window.ResizeObserver) new ResizeObserver(() => fit()).observe($('wrap'));
+function toLocal(e) { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+
+// ---------------------------------------------------------------- drawing helpers (Q-007's)
+let particles = [], shake = { until: 0, amp: 0 }, streaks = [];
+function burst(x, y, n, o) { for (let i = 0; i < n; i++) { const a = (o.dir != null ? o.dir : Math.random() * 6.283) + (Math.random() - 0.5) * (o.spread || 6.3), sp = o.speed * (0.4 + Math.random() * 0.8);
+  particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, g: o.g || 0, r: o.r * (0.6 + Math.random() * 0.7), c: o.c, a: o.a || 1, t0: now() + (o.delay || 0), life: o.life * (0.7 + Math.random() * 0.5) }); } }
+function drawParticles(t) {
+  if (particles.length > 600) particles.splice(0, particles.length - 600);
+  particles = particles.filter(p => t - p.t0 < p.life);
+  for (const p of particles) { if (t < p.t0) continue; const k = (t - p.t0) / p.life, dt = (t - p.t0) / 1000;
+    const x = p.x + p.vx * dt, y = p.y + p.vy * dt + 0.5 * p.g * dt * dt;
+    ctx.fillStyle = p.c.replace('A', String((1 - k) * p.a)); ctx.beginPath(); ctx.arc(x, y, p.r * (1 - 0.4 * k), 0, 6.283); ctx.fill(); }
+}
+function flame(mx, my, size, k, seed) {
+  const tt = now() / 1000;
+  for (let i = 0; i < 3; i++) {
+    const fl = 0.75 + 0.25 * Math.sin(tt * 13 + seed * 3.1 + i * 2), h = size * (1.05 - i * 0.25) * fl * k, w = size * (0.62 - i * 0.14) * k;
+    if (h <= 1) continue;
+    const g = ctx.createRadialGradient(mx, my, 1, mx, my - h * 0.3, h);
+    g.addColorStop(0, i === 2 ? 'rgba(255,250,210,0.95)' : i === 1 ? 'rgba(255,200,80,0.9)' : 'rgba(255,110,30,0.85)'); g.addColorStop(1, 'rgba(255,60,10,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(mx, my - h * 0.25, w, h * 0.7, 0, 0, 6.283); ctx.fill();
+  }
+}
+function glow(x, y, r, a, col) { const g = ctx.createRadialGradient(x, y, 2, x, y, r); g.addColorStop(0, (col || 'rgba(255,160,70,A)').replace('A', a)); g.addColorStop(1, 'rgba(255,110,30,0)'); ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2); }
+function rr(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+// An original pinecone, drawn in code (no image file): an upright cone, rounded and a little narrower at the top, made of
+// rows of overlapping scales (each a rounded lip with a light edge), a scalloped outline where the scale tips meet the
+// edge, and a short woody stem. Drawn once per pixel size into an offscreen canvas and reused as a sprite.
+function drawPineconeShape(c, S) {
+  const u = (v) => v * S, top = 0.13, bot = 0.96;
+  const rows = S >= 40 ? 6 : S >= 24 ? 5 : 4, dy = (bot - top) / rows;
+  const half = (y) => { const t = Math.max(0, Math.min(1, (y - top) / (bot - top))); return 0.285 * Math.pow(Math.sin(Math.PI * (0.10 + 0.86 * t)), 0.62); };
+  // outline: the cone's profile with a small bump at each row of scale tips
+  const body = () => { c.beginPath(); const N = 60;
+    for (let i = 0; i <= N; i++) { const y = top + (bot - top) * i / N, ph = ((y - top) / dy) % 1, b = 1 + 0.09 * Math.sin(Math.PI * ph); c.lineTo(u(0.5 + half(y) * b), u(y)); }
+    for (let i = N; i >= 0; i--) { const y = top + (bot - top) * i / N, ph = ((y - top) / dy + 0.5) % 1, b = 1 + 0.09 * Math.sin(Math.PI * ph); c.lineTo(u(0.5 - half(y) * b), u(y)); }
+    c.closePath(); };
+  c.fillStyle = 'rgba(35,16,4,0.38)'; c.beginPath(); c.ellipse(u(0.535), u(0.57), u(0.32), u(0.43), 0, 0, 6.283); c.fill();     // shadow on the log
+  const g = c.createLinearGradient(u(0.25), u(top), u(0.8), u(bot)); g.addColorStop(0, '#c98a4c'); g.addColorStop(1, '#7c4421');
+  body(); c.fillStyle = g; c.fill();
+  c.save(); body(); c.clip();
+  const per = 2.6, lw = Math.max(0.9, S * 0.04);
+  for (let r = 0; r <= rows; r++) {
+    const y = top + r * dy, dx = (2 * 0.285) / per, off = (r % 2) ? dx / 2 : 0;
+    for (let x = 0.5 - 0.3 - dx + off; x <= 0.5 + 0.3 + dx; x += dx) {
+      c.beginPath(); c.moveTo(u(x - dx * 0.5), u(y - dy * 0.05)); c.quadraticCurveTo(u(x), u(y + dy * 1.2), u(x + dx * 0.5), u(y - dy * 0.05));
+      c.strokeStyle = 'rgba(245,200,140,0.95)'; c.lineWidth = lw * 1.25; c.stroke();
+      c.beginPath(); c.moveTo(u(x - dx * 0.5), u(y + dy * 0.12)); c.quadraticCurveTo(u(x), u(y + dy * 1.38), u(x + dx * 0.5), u(y + dy * 0.12));
+      c.strokeStyle = '#3b1f0b'; c.lineWidth = lw; c.stroke();
+    }
+  }
+  const sh = c.createLinearGradient(u(0.2), 0, u(0.8), 0); sh.addColorStop(0, 'rgba(255,225,180,0.12)'); sh.addColorStop(0.5, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(25,10,0,0.30)');
+  c.fillStyle = sh; c.fillRect(0, 0, S, S); c.restore();
+  body(); c.strokeStyle = '#2c1607'; c.lineJoin = 'round'; c.lineWidth = Math.max(1, S * 0.038); c.stroke();
+  c.strokeStyle = '#5c3b1c'; c.lineCap = 'round'; c.lineWidth = Math.max(1.3, S * 0.07); c.beginPath(); c.moveTo(u(0.5), u(top + 0.01)); c.quadraticCurveTo(u(0.5), u(0.055), u(0.56), u(0.035)); c.stroke();   // stem
+}
+const CONES = {};
+function coneSprite(px) { const k = Math.max(8, Math.round(px)); if (CONES[k]) return CONES[k];
+  const cv = document.createElement('canvas'); cv.width = cv.height = k; drawPineconeShape(cv.getContext('2d'), k); return (CONES[k] = cv); }
+function cone(x, y, s, a) { const sp = coneSprite(s * dpr); ctx.globalAlpha = a == null ? 1 : a; ctx.drawImage(sp, x - s / 2, y - s / 2, s, s); ctx.globalAlpha = 1; }   // Q-011
+function setMeter(html) { $('meter').innerHTML = html; }
+function setStatus(t, sub, cls) { const s = $('status'); s.textContent = t || ''; s.className = 'status-line' + (cls ? ' ' + cls : ''); $('status-sub').textContent = sub || ''; }
+// the two choice buttons: same element style, same size, side by side over the empty tray area; never pressed by the game itself
+function placeAfter() { const a = $('after'); if (a.hidden) return; const r = cv.getBoundingClientRect(), w = $('wrap').getBoundingClientRect(); const h = Math.min(56, Math.max(46, cell * 2.2));
+  Object.assign(a.style, { left: (r.left - w.left + ox) + 'px', width: (cell * 8) + 'px', top: (r.top - w.top + oy + cell * 8 + cell * 0.5) + 'px', height: h + 'px' }); }
+function offer(goLabel, onGo, onStop) { const a = $('after'); a.hidden = false; $('opt-go').textContent = goLabel; $('opt-stop').textContent = 'Stop here';
+  $('opt-go').onclick = () => { a.hidden = true; onGo(); }; $('opt-stop').onclick = () => { a.hidden = true; onStop(); }; requestAnimationFrame(placeAfter); }
+function hideOffer() { $('after').hidden = true; }
+let FONT = null; const font = () => FONT || (FONT = getComputedStyle(document.body).getPropertyValue('--display') || 'system-ui');
+
+// ---------------------------------------------------------------- the street: three cottages (the Core Loop Lab's placeholder home), one per 40 cells
+// 'A' = Street 1 (both arms' first board, and P0's Round 2). 'B' = P1's Street 2: the same cottages in other sizes and order, and a pine.
+// Q-011: the homes are drawn larger (A 1.2 -> 1.4 cells; B scaled to fit under the goal line) in a taller band above the shed.
+const BAND = 2.05;                                     // street band height, in cells (Q-010: 1.35)
+const STREETS = {
+  A: { homes: [{ x: 1.45, s: 1.4, roof: '#c8d6e6' }, { x: 4.15, s: 1.4, roof: '#c8d6e6' }, { x: 6.85, s: 1.4, roof: '#c8d6e6' }], trees: [] },
+  B: { homes: [{ x: 1.3, s: 1.15, roof: '#d9c7b0' }, { x: 4.6, s: 1.5, roof: '#c8d6e6' }, { x: 7.0, s: 1.25, roof: '#b9c9a8' }], trees: [{ x: 2.8, s: 1.3 }, { x: 3.25, s: 0.9 }] },
+};
+const GOAL = 'Warm all 3 homes';
+function drawCottage(x, y, s, part, blaze, roof) {   // Core Loop Lab drawHome, with the window filling as its 40 cells burn
+  const w = s * 0.78, h = s * 0.42, bx = x - w / 2, by = y - s * 0.02;
+  // Q-011: a home that is not yet warm sits in a soft cold halo, fading as it warms; its window is frosted until it fills
+  if (part < 1) { const k = 1 - part, gr = ctx.createRadialGradient(x, by + h * 0.1, s * 0.1, x, by + h * 0.1, s * 0.85); gr.addColorStop(0, 'rgba(150,200,240,' + (0.30 * k) + ')'); gr.addColorStop(1, 'rgba(150,200,240,0)'); ctx.fillStyle = gr; ctx.fillRect(x - s, by - s * 0.8, s * 2, s * 1.6); }
+  ctx.fillStyle = '#5a6172'; ctx.fillRect(bx + w * 0.66, by - s * 0.36, s * 0.12, s * 0.24);
+  ctx.fillStyle = roof; ctx.beginPath(); ctx.moveTo(bx - s * 0.06, by); ctx.lineTo(x, by - s * 0.34); ctx.lineTo(bx + w + s * 0.06, by); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#767a8c'; ctx.fillRect(bx, by, w, h);
+  const wx = x - s * 0.13, wy = by + h * 0.22, ww = s * 0.26, wh = h * 0.5;
+  ctx.fillStyle = '#151821'; ctx.fillRect(wx, wy, ww, wh);
+  if (part >= 1) { ctx.fillStyle = '#ffc46a'; ctx.fillRect(wx, wy, ww, wh); glow(x, wy + wh / 2, s * (0.9 + 0.5 * blaze), 0.45 + 0.4 * blaze); }
+  else if (part > 0) { ctx.fillStyle = 'rgba(255,170,80,' + (0.15 + 0.5 * part) + ')'; ctx.fillRect(wx, wy + wh * (1 - part), ww, wh * part); }
+  if (part < 1) { ctx.strokeStyle = 'rgba(185,222,248,0.95)'; ctx.lineWidth = Math.max(1, s * 0.035); ctx.strokeRect(wx + 0.5, wy + 0.5, ww - 1, wh - 1);   // frosted frame and cross bars
+    ctx.beginPath(); ctx.moveTo(wx + ww / 2, wy); ctx.lineTo(wx + ww / 2, wy + wh); ctx.moveTo(wx, wy + wh / 2); ctx.lineTo(wx + ww, wy + wh / 2); ctx.lineWidth = Math.max(0.8, s * 0.022); ctx.stroke(); }
+  return { cx: bx + w * 0.72, cy: by - s * 0.36 };   // chimney top, for smoke
+}
+function drawPine(x, y, s) { ctx.fillStyle = '#4a3a2c'; ctx.fillRect(x - s * 0.05, y - s * 0.12, s * 0.1, s * 0.14); ctx.fillStyle = '#2f4a3c';
+  for (let k = 0; k < 3; k++) { const ty = y - s * 0.1 - k * s * 0.18, tw = s * (0.36 - k * 0.08); ctx.beginPath(); ctx.moveTo(x - tw, ty); ctx.lineTo(x, ty - s * 0.3); ctx.lineTo(x + tw, ty); ctx.closePath(); ctx.fill(); } }
+
+// ================================================================= THE WOODSHED (Q-007's, condition C)
+const HFG = {
+  // opts: { board: 1|2, street: 'A'|'B', start: 'S1'|'W2', rec, scoreStart, fsStart }
+  start(opts) {
+    Object.assign(this, { board: opts.board, street: opts.street, rec: opts.rec, drag: null, busy: false, anim: null, over: false, frozen: false, won: false, allLit: false, fsCount: opts.fsStart || 0, bonus: 0, fx: null, banner: null, pv: null, victory: null, homesLit: 0 });
+    if (opts.start === 'W2') { this.g = FS.replay(DATA.W2.seed, DATA.W2.prefix); this.replayOk = FS.boardKey(this.g) === DATA.W2.key; this.seed = DATA.W2.seed; }
+    else { this.seed = window.__S2_TEST_S1__ != null ? window.__S2_TEST_S1__ : DATA.S1; this.g = HF.newGame(this.seed); HF.deal(this.g); this.replayOk = true; }   // __S2_TEST_S1__: test runs only
+    this.burnedBase = this.g.burned; this.scoreBase = this.g.score; this.scoreStart = opts.scoreStart || 0;
+    this.t0 = now();
+    this.layout = (w, h) => { const c = Math.floor(Math.min((w - 8) / 8.3, (h - 6) / (8 + BAND + 3.0), 56)); return { cell: c, w: Math.round(c * 8.3), h: Math.round(c * (8 + BAND + 3.0)) + 6, ox: Math.round(c * 0.15), oy: Math.round(c * BAND) }; };
+    setStatus(''); hideOffer(); this.meter();
+    if (this.rec) { this.rec.replayOk = this.replayOk; this.rec.opp_start = FS.opportunities(this.g).length; this.rec.key_start = FS.boardKey(this.g); }
+  },
+  boardBurned() { return this.g.burned - this.burnedBase; },
+  score() { return this.scoreStart + (this.g.score - this.scoreBase) + this.bonus; },
+  meter() { const label = flow.boardLabel(this.board);
+    setMeter((label ? '<span class="boardno">' + label + '</span>' : '') + '<span class="score">' + this.score() + '</span><span class="fs-chip' + (this.fsCount ? ' lit' : '') + '">Firestorms ' + this.fsCount + '</span>'); },
+  trayRect(i) { const w = cell * 8 / 3, x = ox + i * w, y = oy + cell * 8 + cell * 0.3; return { x, y, w, h: cell * 2.7 }; },
+  pieceBox(p) { const xs = p.cells.map(c => c[0]), ys = p.cells.map(c => c[1]); return { w: Math.max(...xs) + 1, h: Math.max(...ys) + 1 }; },
+  down(p) { if (this.victory) { this.victory.skip = true; return; }
+    if (this.busy || this.over || this.frozen) return; for (let i = 0; i < 3; i++) { const r = this.trayRect(i), piece = this.g.tray[i]; if (!piece) continue;
+      if (p.x >= r.x && p.x < r.x + r.w && p.y >= r.y - cell * 0.3 && p.y < r.y + r.h) { this.drag = { i, x: p.x, y: p.y }; SND.tick(); if (this.rec && this.rec.first_touch == null) this.rec.first_touch = Math.round(now() - this.t0); return; } } },
+  move(p) { if (this.drag) { this.drag.x = p.x; this.drag.y = p.y; } },
+  snap() { const d = this.drag; if (!d) return null; const piece = this.g.tray[d.i], b = this.pieceBox(piece);
+    const px = d.x - b.w * cell / 2, py = d.y - cell * 1.1 - b.h * cell;
+    const gx = Math.round((px - ox) / cell), gy = Math.round((py - oy) / cell);
+    return { px, py, gx, gy, ok: HF.fits(this.g, piece, gx, gy) }; },
+  async up() { const d = this.drag; if (!d) return; const sn = this.snap(); this.drag = null; this.pv = null;
+    if (!sn.ok) { if (this.rec) this.rec.misses = (this.rec.misses || 0) + 1; return; }
+    await this.drop(d.i, sn.gx, sn.gy); },
+  // one placement: the lab's HF.place, untouched; then the Firestorm layer reads what happened; then the street checks its target
+  async drop(i, gx, gy) {
+    if (this.busy || this.over || this.frozen) return null; const piece = this.g.tray[i]; if (!piece || !HF.fits(this.g, piece, gx, gy)) return null;
+    const opp = FS.opportunities(this.g);
+    const before = this.g.b.map(r => r.slice()), s0 = this.g.score;
+    const e = HF.place(this.g, i, gx, gy, true); if (!e) return null;
+    const c = FS.classify(e, before, piece, gx, gy);
+    SND.clack();
+    const t = Math.round(now() - this.t0); if (this.rec && this.rec.first_place == null) this.rec.first_place = t;
+    if (this.rec) { this.rec.moves.push([i, gx, gy, t, c.lines, c.pines, c.depth, c.firestorm ? 1 : 0, opp.length, c.wrecked, this.g.score - s0, c.bonus, this.boardBurned()]); this.rec.placements = this.rec.moves.length; }
+    if (c.firestorm) { this.fsCount++; this.bonus += c.bonus; }
+    // the target is checked now, before any animation, so the result of a placement never depends on timing
+    const reached = !this.won && this.boardBurned() >= TARGET; if (reached) { this.won = true; this.frozen = true; }
+    if (e.cleared) { this.busy = true; await this.animateBurn(e, FS.landed(before, piece, gx, gy), c); this.busy = false; }
+    const lit = Math.min(HOMES, Math.floor(this.boardBurned() / PER_HOME)); if (lit > this.homesLit) { this.homesLit = lit; SND.window(); }
+    this.meter();
+    if (this.rec) { this.rec.boardBurned = this.boardBurned(); this.rec.score = this.score(); this.rec.firestorms = this.rec.moves.filter(m => m[7]).length; }
+    if (reached) flow.win(this, 'natural');
+    else if (this.g.over) flow.fail(this);
+    else saveSoon();
+    return { e, c, reached };
+  },
+  async animateBurn(e, landed, c) {
+    const t0 = now(), pc = e.placed[0], times = {};
+    e.waves[0].forEach(([cc, r]) => { const dist = Math.min(e.rows.includes(r) ? Math.abs(cc - pc[0]) : 99, e.cols.includes(cc) ? Math.abs(r - pc[1]) : 99); times[cc + ',' + r] = t0 + dist * 45; });
+    let tEnd = Math.max(...Object.values(times));
+    e.waves.slice(1).forEach((wave) => wave.forEach(([cc, r, fc, fr]) => { const t = (times[fc + ',' + fr] || tEnd) + 150; times[cc + ',' + r] = t; tEnd = Math.max(tEnd, t); }));
+    this.anim = { times, before: landed, t0 };
+    SND.crackle(e.cleared);
+    const pops = {};
+    e.waves.slice(1).forEach((wave) => { wave.forEach(([cc, r, fc, fr]) => { if (this.anim.before[fr][fc] === 2) { const t = times[fc + ',' + fr] + 40 - t0; const k = fc + ',' + fr; if (!pops[k]) { pops[k] = 1; setTimeout(() => { SND.pop(1); shake.until = now() + 160; shake.amp = 5; burst(ox + fc * cell + cell / 2, oy + fr * cell + cell / 2, 16, { speed: cell * 4, r: cell * 0.09, c: 'rgba(255,200,90,A)', life: 500 }); }, t); } } }); });
+    if (e.rows.length + e.cols.length > 1) shake.until = now() + 220, shake.amp = 4;
+    if (c.firestorm) {
+      const pins = c.pineList.map(p => Object.assign({}, p, { t: times[p.c + ',' + p.r] })).sort((a, b) => a.t - b.t);
+      pins.forEach((p, k) => { p.n = k + 1; if (p.from) streaks.push({ ax: ox + p.from[0] * cell + cell / 2, ay: oy + p.from[1] * cell + cell / 2, bx: ox + p.c * cell + cell / 2, by: oy + p.r * cell + cell / 2, t0: p.t - 150, dur: 150 }); });
+      this.fx = { pins, until: tEnd + 2400 };
+    }
+    await sleep(tEnd - t0 + 520); this.anim = null;
+    if (c.firestorm) {
+      SND.firestorm(); shake.until = now() + 380; shake.amp = 7;
+      for (let k = 0; k < 4; k++) burst(ox + cell * (1 + k * 2), oy + cell * 4, 24, { speed: cell * 5, r: cell * 0.1, c: 'rgba(255,190,80,A)', life: 800, g: cell * 3 });
+      const avgRow = c.pineList.reduce((s, p) => s + p.r, 0) / Math.max(1, c.pineList.length);
+      this.banner = { t0: now(), lines: c.lines, pines: c.pines, bonus: c.bonus, row: avgRow >= 3.5 ? 1.9 : 6.1 }; this.meter();
+      await sleep(900);
+    }
+  },
+  drawPieceCell(v, x, y, s, a) { ctx.globalAlpha = a == null ? 1 : a;
+    const pine = v === 2;
+    ctx.fillStyle = pine ? '#7d4a24' : '#8a5a33'; rr(x + 1, y + 1, s - 2, s - 2, s * 0.16); ctx.fill();
+    ctx.fillStyle = pine ? '#9a5d2e' : '#a8713f'; rr(x + 1, y + 1, s - 2, s * 0.42, s * 0.16); ctx.fill();
+    ctx.strokeStyle = '#4c2f19'; ctx.lineWidth = Math.max(1, s * 0.05); ctx.beginPath(); ctx.moveTo(x + s * 0.2, y + s * 0.5); ctx.lineTo(x + s * 0.8, y + s * 0.5); ctx.moveTo(x + s * 0.28, y + s * 0.7); ctx.lineTo(x + s * 0.72, y + s * 0.7); ctx.stroke();
+    ctx.globalAlpha = 1;
+    if (pine) cone(x + s / 2, y + s / 2, s * 0.9, a); },
+  drawStreet(t) {
+    const S = STREETS[this.street], bb = this.boardBurned(), groundY = cell * (BAND - 0.21), vk = this.victory ? 0.5 + 0.5 * Math.sin((t - this.victory.t0) / 120) : 0;
+    // Q-011: the goal, beside the homes it names; the same words on every board, in both arms
+    ctx.fillStyle = '#e4edf5'; ctx.font = '700 ' + Math.max(12, Math.round(cell * 0.45)) + 'px ' + font(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(GOAL, ox + cell * 4, cell * 0.34);
+    ctx.fillStyle = '#20232e'; ctx.fillRect(ox - 3, groundY, cell * 8 + 6, Math.max(2, cell * 0.06));
+    S.trees.forEach(tr => drawPine(ox + cell * tr.x, groundY, cell * tr.s));
+    const chim = [];
+    S.homes.forEach((hm, k) => { const part = this.allLit ? 1 : Math.max(0, Math.min(1, (bb - k * PER_HOME) / PER_HOME)); chim.push(drawCottage(ox + cell * hm.x, groundY - cell * hm.s * 0.4, cell * hm.s, part, this.victory ? vk : 0, hm.roof)); });
+    if (this.victory && t - (this.victory.lastSmoke || 0) > 140) { this.victory.lastSmoke = t; chim.forEach(ch => burst(ch.cx, ch.cy, 1, { dir: -Math.PI / 2, spread: 0.6, speed: cell * 0.9, r: cell * 0.12, c: 'rgba(205,210,220,A)', a: 0.55, life: 1400 })); }
+  },
+  draw(t) {
+    const g = this.g, an = this.anim;
+    this.drawStreet(t);
+    ctx.fillStyle = '#1b1e28'; rr(ox - 3, oy - 3, cell * 8 + 6, cell * 8 + 6, 8); ctx.fill();
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+      const X = ox + c * cell, Y = oy + r * cell; ctx.fillStyle = (r + c) % 2 ? '#222634' : '#262a39'; ctx.fillRect(X + 1, Y + 1, cell - 2, cell - 2);
+      const v = an ? an.before[r][c] : g.b[r][c];
+      if (an && an.times[c + ',' + r] !== undefined) { const k = (t - an.times[c + ',' + r]) / 480;
+        if (k < 0) { this.drawPieceCell(v, X, Y, cell); continue; }
+        if (k < 1) { this.drawPieceCell(v, X, Y, cell, 1 - Math.max(0, k - 0.5) * 2); flame(X + cell / 2, Y + cell * 0.82, cell * 0.66, Math.min(1, k * 5) * (1 - Math.max(0, k - 0.6) / 0.4), c * 3 + r); glow(X + cell / 2, Y + cell / 2, cell, 0.35 * (1 - k)); continue; }
+        if (k < 3) glow(X + cell / 2, Y + cell / 2, cell * 0.5, 0.3 * (1 - k / 3)); continue; }
+      if (v) this.drawPieceCell(v, X, Y, cell);
+    }
+    if (this.fx && t < this.fx.until) { const fade = Math.min(1, (this.fx.until - t) / 500);
+      for (const p of this.fx.pins) { if (t < p.t) continue; const X = ox + p.c * cell + cell / 2, Y = oy + p.r * cell + cell / 2, k = Math.min(1, (t - p.t) / 200);
+        ctx.globalAlpha = fade; ctx.strokeStyle = 'rgba(255,214,120,0.95)'; ctx.lineWidth = Math.max(2, cell * 0.07); ctx.beginPath(); ctx.arc(X, Y, cell * (0.3 + 0.12 * k), 0, 6.283); ctx.stroke();
+        const bx = X - cell * 0.28, by = Y - cell * 0.28, br = cell * 0.2; ctx.fillStyle = '#ffd27a'; ctx.beginPath(); ctx.arc(bx, by, br, 0, 6.283); ctx.fill();
+        ctx.fillStyle = '#2a1606'; ctx.font = '700 ' + Math.round(cell * 0.28) + 'px ' + font(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(p.n), bx, by + 1); ctx.globalAlpha = 1; } }
+    else if (this.fx) this.fx = null;
+    const sn = this.snap();
+    if (sn) { const piece = g.tray[this.drag.i];
+      if (sn.ok) { ctx.fillStyle = 'rgba(255,200,120,0.22)'; piece.cells.forEach(([dx, dy]) => ctx.fillRect(ox + (sn.gx + dx) * cell + 1, oy + (sn.gy + dy) * cell + 1, cell - 2, cell - 2));
+        const tb = g.b.map(r => r.slice()); piece.cells.forEach(([dx, dy]) => tb[sn.gy + dy][sn.gx + dx] = 1);
+        for (let r = 0; r < 8; r++) if (tb[r].every(v => v)) { ctx.fillStyle = 'rgba(255,170,60,0.16)'; ctx.fillRect(ox, oy + r * cell, cell * 8, cell); }
+        for (let c = 0; c < 8; c++) if (tb.every(row => row[c])) { ctx.fillStyle = 'rgba(255,170,60,0.16)'; ctx.fillRect(ox + c * cell, oy, cell, cell * 8); }
+        if (settings.assist === 'preview') { const key = this.drag.i + ',' + sn.gx + ',' + sn.gy; if (!this.pv || this.pv.key !== key) { const r = FS.preview(g, this.drag.i, sn.gx, sn.gy); this.pv = { key, cells: r ? r.e.waves.flat().map(([c, rr2]) => [c, rr2]) : [] }; }
+          ctx.strokeStyle = 'rgba(255,120,60,0.9)'; ctx.lineWidth = Math.max(1.5, cell * 0.06); this.pv.cells.forEach(([c, r]) => ctx.strokeRect(ox + c * cell + 3, oy + r * cell + 3, cell - 6, cell - 6)); } }
+      piece.cells.forEach(([dx, dy], k) => this.drawPieceCell(piece.pine[k] ? 2 : 1, sn.px + dx * cell, sn.py + dy * cell, cell, 0.95)); }
+    if (!this.frozen) for (let i = 0; i < 3; i++) { const piece = g.tray[i]; if (!piece || (this.drag && this.drag.i === i)) continue; const r = this.trayRect(i), b = this.pieceBox(piece), s = Math.min(cell * 0.66, (r.w - 10) / b.w, (r.h - 10) / b.h);
+      const fits = HF.anyFit(g, piece), x0 = r.x + (r.w - b.w * s) / 2, y0 = r.y + (r.h - b.h * s) / 2;
+      piece.cells.forEach(([dx, dy], k) => this.drawPieceCell(piece.pine[k] ? 2 : 1, x0 + dx * s, y0 + dy * s, s, fits ? 1 : 0.35)); }
+  },
+  drawBanner(t) { const b = this.banner; if (!b) return; const age = t - b.t0, life = 2200; if (age > life) { this.banner = null; return; }
+    const a = Math.min(1, age / 140) * Math.min(1, (life - age) / 400), cx = ox + cell * 4, cy = oy + cell * b.row, w = cell * 7.4, h = cell * 2.5;
+    ctx.globalAlpha = a; ctx.fillStyle = 'rgba(20,12,8,0.82)'; rr(cx - w / 2, cy - h / 2, w, h, cell * 0.3); ctx.fill(); ctx.strokeStyle = 'rgba(255,176,82,0.9)'; ctx.lineWidth = 2; ctx.stroke();
+    glow(cx, cy, cell * 4, 0.35 * a); const F = font();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; const pop = 1 + 0.12 * Math.max(0, 1 - age / 220);
+    ctx.fillStyle = '#ffd27a'; ctx.font = '700 ' + Math.round(cell * 0.78 * pop) + 'px ' + F; ctx.fillText('FIRESTORM', cx, cy - cell * 0.52);
+    ctx.fillStyle = '#f3e6d4'; ctx.font = '600 ' + Math.round(cell * 0.36) + 'px ' + F; ctx.fillText(b.lines + ' lines · ' + b.pines + ' pinecones', cx, cy + cell * 0.22);
+    ctx.fillStyle = '#ffb052'; ctx.font = '700 ' + Math.round(cell * 0.42) + 'px ' + F; ctx.fillText('+' + b.bonus, cx, cy + cell * 0.78); ctx.globalAlpha = 1; },
+  // the victory moment: windows blaze, chimneys smoke, the warm chord, one line; two seconds or a tap; the same in both arms
+  drawVictory(t) { const v = this.victory; if (!v) return; const age = t - v.t0, a = Math.min(1, age / 200);
+    const cx = ox + cell * 4, cy = oy + cell * 3.2, w = cell * 7.2, h = cell * 1.9; ctx.globalAlpha = a;
+    ctx.fillStyle = 'rgba(20,12,8,0.84)'; rr(cx - w / 2, cy - h / 2, w, h, cell * 0.3); ctx.fill(); ctx.strokeStyle = 'rgba(255,196,106,0.95)'; ctx.lineWidth = 2; ctx.stroke(); glow(cx, cy, cell * 4.2, 0.4 * a);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#ffd27a'; ctx.font = '700 ' + Math.round(cell * 0.62 * (1 + 0.08 * Math.max(0, 1 - age / 260))) + 'px ' + font(); ctx.fillText('The street is warm', cx, cy); ctx.globalAlpha = 1; },
+};
+
+// ---------------------------------------------------------------- frame loop
+let lastT = 0; const FRAMES = [];
+function frame() {
+  requestAnimationFrame(frame);
+  if ($('play').hidden || !game) return;
+  const t = now(); if (lastT) FRAMES.push(t - lastT); if (FRAMES.length > 3000) FRAMES.shift(); lastT = t;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, CW, CH);
+  ctx.fillStyle = '#14141a'; ctx.fillRect(0, 0, CW, CH);
+  ctx.save(); if (t < shake.until) { const k = (shake.until - t) / 200; ctx.translate((Math.random() - 0.5) * shake.amp * k, (Math.random() - 0.5) * shake.amp * k); }
+  game.draw(t);
+  streaks = streaks.filter(st => t - st.t0 < st.dur + 200);
+  for (const st of streaks) { if (t < st.t0) continue; const k = Math.min(1, (t - st.t0) / st.dur), tail = Math.max(0, k - 0.5), fade = t - st.t0 > st.dur ? 1 - (t - st.t0 - st.dur) / 200 : 1;
+    const hx = st.ax + (st.bx - st.ax) * k, hy = st.ay + (st.by - st.ay) * k, tx = st.ax + (st.bx - st.ax) * tail, ty = st.ay + (st.by - st.ay) * tail;
+    ctx.strokeStyle = 'rgba(255,215,120,' + 0.9 * fade + ')'; ctx.lineWidth = cell * 0.16; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(hx, hy); ctx.stroke(); }
+  drawParticles(t);
+  game.drawBanner(t); game.drawVictory(t);
+  ctx.restore();
+}
+
+// ---------------------------------------------------------------- input
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('pointerdown', (e) => { audio(); if (!game) return; try { cv.setPointerCapture(e.pointerId); } catch (x) {} game.down(toLocal(e)); });
+cv.addEventListener('pointermove', (e) => { if (game) game.move(toLocal(e)); });
+cv.addEventListener('pointerup', (e) => { if (game) game.up(toLocal(e)); });
+cv.addEventListener('pointercancel', () => { if (game && game.drag) { game.drag = null; game.pv = null; } });
+
+// ---------------------------------------------------------------- the session: Street 1, the win, the choice, the second board, the finish
+const settings = { assist: 'off', visit: 'first' };
+function chipGroup(id, key) { document.querySelectorAll('#' + id + ' .chip').forEach(b => b.addEventListener('click', () => { settings[key] = b.dataset.v; document.querySelectorAll('#' + id + ' .chip').forEach(o => o.setAttribute('aria-pressed', String(o === b))); })); }
+chipGroup('assist', 'assist'); chipGroup('visit', 'visit');
+// Q-012R R2: a follow-up starts with an empty code and slot (never the next unused ones); back to First visit restores the defaults
+document.querySelectorAll('#visit .chip').forEach(b => b.addEventListener('click', () => { if (b.dataset.v === 'followup') { $('slot').value = ''; $('pcode').value = ''; $('slot-note').textContent = 'Follow-up visit: type the player code and the slot from the first visit (roster).'; } else refreshSetup(); }));
+const ARM_TEXT = {
+  // everything that differs between the arms is in this table: words and which street is drawn on the second board
+  P0: { label2: 'Round 2', offer1: 'Round 2', go1: 'Play Round 2', retry2: 'Play Round 2 again', finish: 'Two rounds complete', street2: 'A' },
+  P1: { label2: 'Street 2', offer1: 'Street 2 unlocked', go1: 'Next street', retry2: 'Retry Street 2', finish: 'Both streets warm', street2: 'B' },
+};
+const flow = {
+  arm() { return session.arm; },
+  T() { return ARM_TEXT[session.arm]; },
+  boardLabel(board) { return board === 2 && session ? this.T().label2 : ''; },
+  begin(kind, arm, slot) {
+    session = { id: newId(), version: VERSION, kind, code: kind === 'solo' ? 'Edin' : ($('pcode').value.trim() || 'P?'), slot: slot || null, arm, visit: settings.visit, settings: Object.assign({}, settings),
+      started: new Date().toISOString(), t0: Date.now(), device: deviceInfo(), data: { S1: DATA.S1, W2seed: DATA.W2.seed, W2prefix: DATA.W2.prefix.length, target: TARGET },
+      progress: { b1: false, b2: false, board: 1, scoreB2: null, fsB2: null }, attempts: [], choices: [], wins: [], finished: false, ended: null, observer: {} };
+    saveSession(); this.startBoard(1);
+  },
+  startBoard(board, resumed) {
+    const p = session.progress, n = session.attempts.filter(a => a.board === board).length + 1;
+    const street = board === 1 ? 'A' : this.T().street2;
+    const rec = { board, attempt: n, street, start: board === 1 ? 'S1' : 'W2', resumed: !!resumed, t_start: sms(), scoreStart: board === 1 ? 0 : p.scoreB2, fsStart: board === 1 ? 0 : p.fsB2, moves: [], placements: 0, won: false, how: null, ended: null };
+    session.attempts.push(rec); p.board = board; show('play'); game = HFG; particles = []; streaks = [];
+    HFG.start({ board, street, start: rec.start, rec, scoreStart: rec.scoreStart, fsStart: rec.fsStart }); rec.seed = HFG.seed; fit(); saveSoon();
+  },
+  // a board reaches its third home: the victory moment, then the choice (never taken by the game itself)
+  async win(G, how) {
+    const rec = G.rec; rec.won = true; rec.how = how; rec.ended = 'win'; rec.t_ms = Math.round(now() - G.t0); rec.score = G.score(); rec.boardBurned = G.boardBurned();
+    const p = session.progress; session.wins.push({ board: G.board, how, t: sms(), placements: rec.placements, score: rec.score });
+    if (G.board === 1) { p.b1 = true; p.board = 2; p.scoreB2 = rec.score; p.fsB2 = G.fsCount; } else p.b2 = true;
+    saveSession();
+    G.frozen = true; G.allLit = true;
+    // a Firestorm on the winning placement finishes its own banner first, so the two never overlap
+    while (G.banner && !window.__FS_FAST__) await new Promise(r => setTimeout(r, 30));
+    G.victory = { t0: now(), skip: false }; SND.warm(); G.homesLit = HOMES;
+    for (let k = 0; k < 3; k++) burst(ox + cell * (1.5 + k * 2.7), cell * 0.6, 18, { speed: cell * 3, r: cell * 0.08, c: 'rgba(255,200,110,A)', life: 900 });
+    const t0 = now(); while (now() - t0 < 2000 * (window.__FS_FAST__ ? 0 : 1) && !G.victory.skip) await new Promise(r => setTimeout(r, 30));
+    rec.victorySkipped = !!G.victory.skip; G.victory = null;
+    this.presentWin(G.board);
+  },
+  presentWin(board) { const shown = sms();
+    if (board === 1) { setStatus('The street is warm', this.T().offer1, 'good');
+      offer(this.T().go1, () => this.choose('win1', 'continue', shown, () => this.startBoard(2)), () => this.choose('win1', 'stop', shown, () => this.stop('stopped_after_win1'))); }
+    else { setStatus(this.T().finish, '', 'good');
+      offer('Play it again', () => this.choose('win2', 'replay', shown, () => this.startBoard(2)), () => this.choose('win2', 'stop', shown, () => this.stop('stopped_after_win2'))); } },
+  fail(G) { const rec = G.rec; G.over = true; G.frozen = true; rec.ended = 'no_room'; rec.t_ms = Math.round(now() - G.t0); rec.score = G.score(); saveSession(); SND.fail(); this.presentFail(G.board); },
+  presentFail(board) { const shown = sms(), retry = board === 1 ? 'Try again' : this.T().retry2;
+    setStatus('No room left', '', 'bad');
+    offer(retry, () => this.choose('fail' + board, 'retry', shown, () => this.startBoard(board)), () => this.choose('fail' + board, 'stop', shown, () => this.stop('stopped_after_fail' + board))); },
+  // after a reload: a choice that was on screen comes back as it was (never taken for the player); a board in play restarts from its start
+  resume() { const p = session.progress; session.resumes = (session.resumes || 0) + 1; const a = session.attempts[session.attempts.length - 1];
+    const pendingChoice = a && (a.ended === 'win' || a.ended === 'no_room') && !session.choices.some(c => c.shown >= (a.t_start || 0) && c.at === (a.ended === 'win' ? 'win' : 'fail') + a.board);
+    if (pendingChoice) { show('play'); game = HFG; particles = []; streaks = []; HFG.start({ board: a.board, street: a.street, start: a.start, rec: null, scoreStart: a.score, fsStart: 0 });
+      for (const m of a.moves) HF.place(HFG.g, m[0], m[1], m[2], true);   // the board as it was when the choice appeared (display only, nothing logged)
+      HFG.frozen = true; HFG.allLit = a.ended === 'win'; HFG.scoreBase = HFG.g.score; HFG.scoreStart = a.score; HFG.fsCount = (a.fsStart || 0) + a.moves.filter(m => m[7]).length; HFG.meter(); fit();   // Q-011: not discarded attempts
+      session.choices.push({ at: 'resume', picked: 'redisplayed_' + a.ended, shown: sms(), latency_ms: 0, arm: session.arm }); saveSession();
+      if (a.ended === 'win') this.presentWin(a.board); else this.presentFail(a.board); return; }
+    if (a && !a.ended) { a.ended = 'reload'; }
+    this.startBoard(p.board, true); },
+  choose(at, picked, shown, then) { session.choices.push({ at, picked, shown, latency_ms: sms() - shown, arm: session.arm }); saveSession(); then(); },
+  stop(why) { session.ended = why; this.summarize(); session.finished = true; saveSession(); game = null; show('done'); scrollTo(0, 0); renderDoneSummary(); },
+  // the measures the reading needs, computed once at the end (the raw rows stay in the record)
+  summarize() { const w1 = session.wins.find(w => w.board === 1); const after = w1 ? session.attempts.filter(a => a.t_start >= w1.t - 1) : [];
+    const within = (a) => a.moves.filter(m => a.t_start + m[3] - w1.t <= 5 * 60000).length;
+    session.summary = { board1_won: !!w1, board1_how: w1 ? w1.how : 'not_reached', board2_won: session.wins.some(w => w.board === 2), attempts_board1: session.attempts.filter(a => a.board === 1).length, attempts_board2: session.attempts.filter(a => a.board === 2).length,
+      placements_to_win1: w1 ? session.attempts.filter(a => a.board === 1 && a.won)[0].placements : null, ms_to_win1: w1 ? w1.t : null,
+      choice_at_win1: (session.choices.find(c => c.at === 'win1') || {}).picked || null, choice_latency_win1: (session.choices.find(c => c.at === 'win1') || {}).latency_ms || null,
+      placements_after_win1_5min: w1 ? after.reduce((s, a) => s + within(a), 0) : null, placements_after_win1_total: w1 ? after.reduce((s, a) => s + a.moves.length, 0) : null, ms_after_win1: w1 ? sms() - w1.t : null,
+      firestorms: session.attempts.reduce((s, a) => s + a.moves.filter(m => m[7]).length, 0), placements: session.attempts.reduce((s, a) => s + a.moves.length, 0), final_score: (session.attempts.slice(-1)[0] || {}).score || 0 }; },
+  assist() { const G = HFG; if (!G || G.won || G.busy) return; G.rec.assisted = true; G.won = true; show('play'); this.win(G, 'assisted'); },
+};
+function renderDoneSummary() { $('done-summary').innerHTML = sessionSummary(session).map(l => '<div>' + esc(l) + '</div>').join(''); }
+$('done-go').addEventListener('click', () => { const O = {}; ['trying', 'best', 'planned', 'again', 'windows', 'differently', 'neutral', 'notes'].forEach(k => O[k] = $('o-' + k).value);
+  document.querySelectorAll('#done .stepper').forEach(s => O[s.dataset.n] = +s.querySelector('output').value);
+  document.querySelectorAll('#done [data-q]').forEach(g => { const on = g.querySelector('.chip[aria-pressed="true"]'); O[g.dataset.q] = on ? on.dataset.v : null; });
+  if (session) { session.observer = O; saveSession(); } toSetup(); });
+document.querySelectorAll('#done [data-q] .chip').forEach(b => b.addEventListener('click', () => b.parentElement.querySelectorAll('.chip').forEach(o => o.setAttribute('aria-pressed', String(o === b)))));
+document.querySelectorAll('#done .stepper').forEach(s => s.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { const o = s.querySelector('output'); o.value = String(Math.max(0, +o.value + +b.dataset.d)); })));
+function esc(s) { return String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+function show(id) { ['setup', 'card', 'play', 'obsmenu', 'done'].forEach(s => $(s).hidden = s !== id); document.body.style.height = id === 'play' ? '100%' : ''; }
+function toSetup() { game = null; settings.visit = 'first'; document.querySelectorAll('#visit .chip').forEach(o => o.setAttribute('aria-pressed', String(o.dataset.v === 'first'))); show('setup'); refreshSetup(); }   // Q-012R R2
+// observer menu behind the back arrow: back to the game, an assisted win (logged apart), or end the session
+$('back').addEventListener('click', () => { if (!session) return toSetup(); show('obsmenu'); const G = HFG; $('obs-where').textContent = 'Board ' + G.board + ' · ' + G.boardBurned() + ' of ' + TARGET + ' cells · ' + Math.round((now() - G.t0) / 1000) + ' s on this board'; $('obs-assist').hidden = G.won || G.over; });
+$('obs-back').addEventListener('click', () => { show('play'); fit(); });
+$('obs-assist').addEventListener('click', () => flow.assist());
+$('obs-end').addEventListener('click', () => { const G = HFG; if (G.rec && !G.rec.ended) { G.rec.ended = 'left'; G.rec.t_ms = Math.round(now() - G.t0); G.rec.score = G.score(); } flow.stop('observer_ended'); });
+$('card-go').addEventListener('click', () => { audio(); const s = pending; pending = null; flow.begin(s.kind, s.arm, s.slot); });
+let pending = null;
+// Q-012R R2: Start needs a valid code and slot; a first visit may not reuse a slot or code; a follow-up must match its first visit if that is in this browser
+$('begin').addEventListener('click', async () => { const say = (t) => { $('slot-note').textContent = t; }, code = $('pcode').value.trim(), raw = $('slot').value.trim(), slot = /^\d{1,2}$/.test(raw) ? parseInt(raw, 10) : NaN;
+  if (!/^[A-Za-z0-9_-]{1,12}$/.test(code)) return say('Type a player code from the roster (letters and digits, no spaces).');
+  if (!(slot >= 1 && slot <= 16)) return say('Type a slot from 1 to 16 from the roster.');
+  const firsts = (await allStored()).filter(s => s.kind === 'session' && s.visit !== 'followup');
+  if (settings.visit === 'followup') { const f = firsts.find(s => s.code === code); if (f && f.slot !== slot) return say(code + '\'s first visit in this browser used slot ' + f.slot + '. Type slot ' + f.slot + '.'); }
+  else { const u = firsts.find(s => s.slot === slot); if (u) return say('Slot ' + slot + ' is already used by ' + u.code + '. Use the next slot on the roster.'); const c = firsts.find(s => s.code === code); if (c) return say(code + ' already had a first visit (slot ' + c.slot + '). For a returning player pick "Follow-up visit".'); }
+  pending = { kind: 'session', arm: DATA.ARMS[slot - 1], slot }; show('card'); });
+document.querySelectorAll('[data-solo]').forEach(b => b.addEventListener('click', () => { audio(); flow.begin('solo', b.dataset.solo, null); }));
+$('resume').addEventListener('click', async () => { const id = localStorage.getItem(LS_CURRENT); const s = (await allStored()).find(x => x.id === id); if (!s) return refreshSetup(); session = s; flow.resume(); });
+$('reset').addEventListener('click', async () => { const id = localStorage.getItem(LS_CURRENT); const s = (await allStored()).find(x => x.id === id); if (s) { session = s; session.ended = 'reset'; flow.summarize(); session.finished = true; await saveSession(); session = null; } try { localStorage.removeItem(LS_CURRENT); } catch (e) {} refreshSetup(); });
+async function refreshSetup() {
+  const list = await allStored(); const used = new Set(list.filter(s => s.kind === 'session' && s.slot && s.visit !== 'followup').map(s => s.slot));
+  let next = 1; while (used.has(next) && next < 16) next++; if (settings.visit !== 'followup') { $('slot').value = String(next); $('pcode').value = 'P' + next; }   // Q-012R R2
+  $('slot-note').textContent = 'Slots used: ' + (used.size ? [...used].sort((a, b) => a - b).join(', ') : 'none') + '. Arms are fixed in advance per slot and hidden from the player.';
+  let cur = null; try { cur = localStorage.getItem(LS_CURRENT); } catch (e) {} const s = cur && list.find(x => x.id === cur && !x.finished);
+  $('resume-box').hidden = !s; if (s) $('resume-text').textContent = s.code + ' · ' + (s.progress.b1 ? 'Street 1 warm; resumes at the start of the second board' : 'resumes at the start of Street 1') + ' · score ' + (s.progress.b1 ? s.progress.scoreB2 : 0);
+  if ($('results').open) renderResults();
+}
+function sessionSummary(s) { const S = s.summary || {}; const out = [(s.kind === 'solo' ? 'Practice run' : s.code + ' · slot ' + s.slot) + ' · ' + s.arm + (s.visit === 'followup' ? ' · follow-up visit' : '') + ' · ' + String(s.started).slice(0, 16).replace('T', ' ')];
+  out.push('Street 1: ' + (S.board1_won ? (S.board1_how + ' win in ' + S.placements_to_win1 + ' placements, ' + Math.round(S.ms_to_win1 / 1000) + ' s') : 'not reached') + ' · attempts ' + (S.attempts_board1 || 0));
+  if (S.board1_won) out.push('At the win: ' + (S.choice_at_win1 || '—') + (S.choice_latency_win1 != null ? ' after ' + (S.choice_latency_win1 / 1000).toFixed(1) + ' s' : '') + ' · placements after the win: ' + S.placements_after_win1_5min + ' in 5 min (' + S.placements_after_win1_total + ' total) · second board ' + (S.board2_won ? 'won' : 'not won') + ', attempts ' + (S.attempts_board2 || 0));
+  out.push('Firestorms ' + (S.firestorms || 0) + ' · placements ' + (S.placements || 0) + ' · score ' + (S.final_score || 0) + ' · ended: ' + (s.ended || 'open'));
+  return out; }
+async function renderResults() { const list = await allStored(); $('results-list').innerHTML = list.length ? list.slice().reverse().map(s => '<div class="sess">' + sessionSummary(s).map(l => '<div>' + esc(l) + '</div>').join('') + '</div>').join('') : 'Nothing yet.'; }
+$('results').addEventListener('toggle', () => { if ($('results').open) renderResults(); });
+$('copy-all').addEventListener('click', async () => { const list = await allStored(); const txt = JSON.stringify(list, null, 1); try { await navigator.clipboard.writeText(txt); $('copy-status').textContent = 'Copied ' + list.length + ' sessions.'; } catch (e) { $('copy-status').textContent = 'Copy did not work here; use Download.'; } });
+let DL = null; (async () => { try { if (window.claude && window.claude.use) DL = await window.claude.use('downloads'); } catch (e) { DL = null; } })();
+// Q-012R R1: outside the Claude app "Download all" saves the same JSON as an ordinary browser download; every file name is unique (UTC date and time to the second, plus a random suffix)
+function exportName() { const t = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15), r = new Uint8Array(2); (crypto || window.msCrypto).getRandomValues(r); return 'firestorm-two-street-q012r-sessions-' + t + '-' + Array.from(r, b => b.toString(16).padStart(2, '0')).join('') + '.json'; }
+$('download-all').addEventListener('click', async () => { const list = await allStored(), data = JSON.stringify(list, null, 1), filename = exportName();
+  if (DL) { try { await DL.save({ filename, data }); } catch (e) {} return; }
+  try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' })); a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 60000); $('copy-status').textContent = 'Downloaded ' + list.length + ' sessions: ' + filename + '. Open the file and check it before closing this tab.'; }
+  catch (e) { $('copy-status').textContent = 'Download did not work here.'; } });
+
+// ---------------------------------------------------------------- test hook (checks and recordings only)
+window.__S2__ = { get game() { return game; }, get session() { return session; }, frames: FRAMES, settings, flow, DATA, ARM_TEXT,
+  cellCenter: (x, y) => { const r = cv.getBoundingClientRect(); return { x: r.left + ox + x * cell + cell / 2, y: r.top + oy + y * cell + cell / 2 }; },
+  tray: (i) => { const r = cv.getBoundingClientRect(), t = HFG.trayRect(i); return { x: r.left + t.x + t.w / 2, y: r.top + t.y + t.h / 2 }; },
+  dropPoint: (gx, gy, i) => { const r = cv.getBoundingClientRect(), piece = HFG.g.tray[i], b = HFG.pieceBox(piece); return { x: r.left + ox + gx * cell + b.w * cell / 2, y: r.top + oy + gy * cell + cell * 1.1 + b.h * cell }; },
+  drop: (i, x, y) => HFG.drop(i, x, y),
+  geom: () => { const px = Math.max(12, Math.round(cell * 0.45)); ctx.save(); ctx.font = '700 ' + px + 'px ' + font(); const gw = ctx.measureText(GOAL).width; ctx.restore();
+    const top = (k) => Math.min(...STREETS[k].homes.map(h => cell * (BAND - 0.21) - cell * h.s * 0.78));
+    return { cell, ox, oy, band: BAND, goal: GOAL, goalY: cell * 0.34, goalPx: px, goalW: gw, homesTopA: top('A'), homesTopB: top('B') }; },
+  cone: (px) => { const c = coneSprite(px), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let x0 = 1e9, x1 = -1, y0 = 1e9, y1 = -1, n = 0, r = 0, g = 0, b = 0;
+    for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) { const i = (y * c.width + x) * 4; if (d[i + 3] > 200) { n++; r += d[i]; g += d[i + 1]; b += d[i + 2]; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); } }
+    return { size: c.width, w: x1 - x0 + 1, h: y1 - y0 + 1, opaque: n, rgb: [r / n, g / n, b / n].map(Math.round) }; },
+  images: () => Object.keys(IMG).length + document.images.length,
+  state: () => ({ key: FS.boardKey(HFG.g), b: HFG.g.b.map(r => r.slice()), score: HFG.score(), base: HFG.g.score, bonus: HFG.bonus, fs: HFG.fsCount, boardBurned: HFG.boardBurned(), board: HFG.board, street: HFG.street, won: HFG.won, over: HFG.over, frozen: HFG.frozen, busy: HFG.busy, victory: !!HFG.victory, offer: !$('after').hidden, go: $('opt-go').textContent, stop: $('opt-stop').textContent, status: $('status').textContent, sub: $('status-sub').textContent, meter: $('meter').innerText, replayOk: HFG.replayOk }) };
+loadImages().then(() => { show('setup'); refreshSetup(); requestAnimationFrame(frame); });
+</script>
+<script>
+const WEB_CONFIG = {"study":"fs-q013-web","build":"fs-q013-web-2","open":true,"collector":{"type":"appsscript","url":"https://script.google.com/macros/s/AKfycbxHXuPuQ0fsS87lIK9kT41QvRACPbvk5mq1aBvG62yiHIzUvBOubkI4C2_RHJrwGOxi/exec"},"codes":{"a8d7a7818561ef0d":[1,0,"P1"],"380f9ce95e82e806":[2,0,"P2"],"25454553a35322ca":[3,0,"P3"],"c2e54f86e7db9235":[4,0,"P4"],"532a31e9ad0b5441":[5,0,"P5"],"d94a6ac1b29d8033":[6,0,"P6"],"cf88ddb2a8e53cb6":[7,0,"P7"],"9bd5ec5ec2e5b270":[8,0,"P8"],"fcf0dd3512b9bcaa":[9,0,"P9"],"2a895402c6a6f50a":[10,0,"P10"],"7f054a81ed5e0d4a":[11,0,"P11"],"329751e2647fd274":[12,0,"P12"],"2747b4d005594042":[13,0,"P13"],"7983307c0e9735f4":[14,0,"P14"],"ab63fa1da0583511":[15,0,"P15"],"5c3a776f50f2f5f7":[16,0,"P16"],"c80f902a7eb130a0":[2,1,"T1"],"fdc0f7600b9febe4":[1,1,"T2"]},"limits":{"noWinMs":600000,"afterWinMs":300000},"checkpointMs":60000};
+</script>
+<script>
+// Firestorm web test shell (Q-013). Runs after Q-012R's app.js, which is included byte for byte and decides everything about play.
+// This layer only: replaces the observer's setup with consent and an invitation code (the code fixes the pre-assigned slot and arm,
+// which the player never sees); hides observer-only controls (assisted win, setup, results, the summary line); ends the test at
+// 10 minutes without a natural Street 1 win or 5 minutes after one; asks the player the five neutral questions; records coarse
+// device data (no browser string); and sends each session to the collector, keeping it in an outbox on the phone until the
+// collector confirms receipt (retry, and "Save a copy" as the manual fallback).
+(function () {
+  'use strict';
+  const C = WEB_CONFIG, $ = (id) => document.getElementById(id);
+  const OUTBOX = 'fs2w_outbox', RECEIPTS = 'fs2w_receipts', KEYS = 'fs2w_keys', SCREENS = ['w-start', 'w-code', 'w-resume', 'w-thanks', 'w-closed'];
+  const W = window.__WEB__ = { code: null, entry: null, sending: false, lastSend: 0, lastSig: '', mem: {}, log: [] };
+
+  // ---------------------------------------------------------------- small storage helpers (fall back to memory if the browser blocks storage)
+  const load = (k) => { if (W.mem[k]) return W.mem[k]; try { return JSON.parse(localStorage.getItem(k) || '{}'); } catch (e) { return {}; } };
+  const keep = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); delete W.mem[k]; } catch (e) { W.mem[k] = v; } };
+
+  // ---------------------------------------------------------------- screens: the app's own show() also hides this layer's screens
+  const show0 = window.show;
+  window.show = function (id) { SCREENS.forEach(s => { $(s).hidden = true; }); show0(id); };
+  function wShow(id) { show0('__none__'); SCREENS.forEach(s => { $(s).hidden = s !== id; }); document.body.style.height = ''; scrollTo(0, 0); }
+
+  // ---------------------------------------------------------------- coarse device data: size, density, touch, OS and browser family only
+  window.deviceInfo = function () { const ua = navigator.userAgent || '';
+    const os = /iPhone|iPad|iPod/.test(ua) ? 'iOS' : /Android/.test(ua) ? 'Android' : /Windows|Macintosh|Linux|CrOS/.test(ua) ? 'desktop' : 'other';
+    const br = /SamsungBrowser/.test(ua) ? 'Samsung Internet' : /CriOS|Chrome|Chromium/.test(ua) ? 'Chrome' : /FxiOS|Firefox/.test(ua) ? 'Firefox' : /Safari/.test(ua) ? 'Safari' : 'other';
+    return { w: innerWidth, h: innerHeight, dpr: devicePixelRatio || 1, touch: ('ontouchstart' in window) || navigator.maxTouchPoints > 0, os, browser: br }; };
+
+  // ---------------------------------------------------------------- observer-only parts hidden, wording for a player on their own
+  function relabel() {
+    $('back').setAttribute('aria-label', 'Menu');
+    const om = $('obsmenu'); om.querySelector('.eyebrow').textContent = 'Menu'; $('obs-end').textContent = "I'm done, finish now";
+    const d = $('done'); d.querySelector('h1').textContent = 'Thanks for playing'; const p = d.querySelector(':scope > p'); if (p) p.textContent = 'Five quick questions. Short answers are fine, and you can leave any blank.';
+    d.querySelector('#notes summary').textContent = 'Your answers';
+    const lab = { trying: 'What were you trying to do?', windows: 'What do the yellow windows mean?', best: 'What was your best moment, and why?', again: 'Would you choose to play again, and why?', differently: 'What would you do differently?', notes: 'Anything else? (optional; please no names or contact details)' };
+    Object.entries(lab).forEach(([k, t]) => { const l = d.querySelector('label[for="o-' + k + '"]'); if (l) l.textContent = t; });
+    const f = (k) => $('o-' + k).closest('.field');
+    f('trying').after(f('windows'));                                   // the Q-012 order: trying, windows, best, again, differently
+    ['planned', 'neutral'].forEach(k => { f(k).hidden = true; });
+    d.querySelectorAll('.stepper, [data-q]').forEach(el => { el.closest('.field').hidden = true; });
+    $('done-go').textContent = 'Send my answers';
+  }
+
+  // ---------------------------------------------------------------- invitation codes: a slow hash of the code, looked up in the table; the code itself is never stored or sent
+  const norm = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const hex = (b) => Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join('');
+  // PBKDF2 with 600,000 rounds (a fraction of a second, once per code): bytes 0-7 are the public lookup hash in this page's table;
+  // bytes 8-31 are the private key that only someone with the code can compute, and that the collector requires
+  async function deriveCode(c) { const e = new TextEncoder(), k = await crypto.subtle.importKey('raw', e.encode(c), 'PBKDF2', false, ['deriveBits']);
+    const b = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: e.encode('fs-q013-web'), iterations: 600000 }, k, 256); return { pub: hex(b.slice(0, 8)), key: hex(b.slice(8)) }; }
+  async function lookup(c) { if (!c || c.length !== 8) return null; const d = await deriveCode(c), r = C.codes[d.pub]; return r ? { hash: d.pub, key: d.key, slot: r[0], test: !!r[1], label: r[2] } : null; }
+
+  // ---------------------------------------------------------------- start of a session: the app's own begin(), with the slot from the code
+  function priorFirstVisit(hash) { try { return Object.values(JSON.parse(localStorage.getItem(LS_SESSIONS) || '{}')).some(s => s.kind === 'session' && s.web && s.web.codeHash === hash); } catch (e) { return false; } }
+  function begin() { const inv = W.code; settings.visit = priorFirstVisit(inv.hash) ? 'followup' : 'first'; settings.assist = 'off';
+    $('pcode').value = inv.label; audio(); flow.begin('session', DATA.ARMS[inv.slot - 1], inv.slot);
+    session.web = { build: C.build, study: C.study, codeHash: inv.hash, test: inv.test, entry: W.entry, consentAt: new Date().toISOString(), consentVersion: 1, limits: C.limits, seq: 0, answered: false, endedBy: null };
+    const ks = load(KEYS); ks[session.id] = inv.key; keep(KEYS, ks);   // kept on this phone only, for resends; never in the record
+    saveSession(); W.lastSig = ''; checkpoint(false); }
+
+  // ---------------------------------------------------------------- the two time limits, and checkpoints while playing
+  const sig = (s) => s.attempts.length + ':' + s.attempts.reduce((n, a) => n + a.moves.length, 0) + ':' + s.choices.length + ':' + (s.finished ? 1 : 0) + ':' + JSON.stringify(s.observer || {}).length;
+  function tick() {
+    const s = session; if (!s || s.kind !== 'session' || !s.web) return;
+    if (!s.finished) { const t = sms(), w1 = s.wins.find(w => w.board === 1);
+      if (!w1 && t >= C.limits.noWinMs) return timeUp('web_time_limit_no_win');
+      if (w1 && t - w1.t >= C.limits.afterWinMs) return timeUp('web_time_limit_after_win'); }
+    if (!s.finished && C.checkpointMs && Date.now() - W.lastSend >= C.checkpointMs && sig(s) !== W.lastSig) checkpoint(false);   // minute checkpoints only while playing
+  }
+  function timeUp(why) { session.web.endedBy = 'time'; flow.stop(why); }
+  const stop0 = flow.stop.bind(flow);
+  flow.stop = function (why) { if (why === 'observer_ended') why = 'player_finished';   // in this build the ← menu belongs to the player
+    stop0(why); if (!session.web) return;
+    if (!session.web.endedBy) session.web.endedBy = why === 'player_finished' ? 'player' : 'game';
+    $('done-eyebrow').textContent = session.web.endedBy === 'time' ? "Time's up" : 'Finished';
+    saveSession(); checkpoint(false); };
+  // "Send my answers": the app saves them into the record and calls toSetup(); here that becomes the final send
+  // the observer-only fields of Q-012R's end screen are not shown in this build: stored as null ("not asked"), never as 0 or ""
+  const NOT_ASKED = ['planned', 'neutral', 'plans', 'setups', 'surprises', 'frustration', 'askedMore', 'followup'];
+  window.toSetup = function () { game = null; if (session && session.web) { if (session.observer) NOT_ASKED.forEach(k => { session.observer[k] = null; }); session.web.answered = true; saveSession(); checkpoint(true); wShow('w-thanks'); renderSend(); } else wShow('w-start'); };
+
+  // ---------------------------------------------------------------- sending: one outbox entry per session (the newest version), removed only on a confirmed receipt
+  function payload(final) { const s = session; s.web.seq = (s.web.seq || 0) + 1; saveSession();
+    return { study: C.study, build: C.build, seq: s.web.seq, final: !!(final || s.web.answered), sentAt: new Date().toISOString(), key: load(KEYS)[s.id] || null, session: JSON.parse(JSON.stringify(s)) }; }
+  function checkpoint(final) { if (!session || !session.web) return; if (C.collector.type === 'formspree' && !session.finished) return;   // Formspree: only finished sessions (50 a month)
+    const p = payload(final), ob = load(OUTBOX); ob[p.session.id] = p; keep(OUTBOX, ob); W.lastSig = sig(session); W.lastSend = Date.now(); flush(); }
+  async function postOne(p) {
+    const col = C.collector; if (!col.url || /PASTE/.test(col.url)) throw new Error('not_configured');
+    const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 20000);
+    try {
+      if (col.type === 'formspree') {
+        const s = p.session, S = s.summary || {}, O = s.observer || {};
+        const body = { _subject: 'Firestorm web test ' + s.code + (s.web.test ? ' (TEST)' : ''), study: p.study, build: p.build, seq: p.seq, final: p.final, session_id: s.id, code_hash: s.web.codeHash, label: s.code, slot: s.slot, arm: s.arm, test: s.web.test, visit: s.visit, ended: s.ended,
+          board1_how: S.board1_how, placements_to_win1: S.placements_to_win1, choice_at_win1: S.choice_at_win1, placements_after_win1_5min: S.placements_after_win1_5min, board2_won: S.board2_won,
+          a_trying: O.trying, a_windows: O.windows, a_best: O.best, a_again: O.again, a_differently: O.differently, a_other: O.notes, session_json: JSON.stringify(s) };
+        const r = await fetch(col.url, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body), signal: ctl.signal });
+        const j = await r.json().catch(() => ({})); if (!r.ok || j.ok !== true) throw new Error('rejected ' + r.status);
+        return 'formspree-' + p.seq;
+      }
+      // Apps Script web app: a page on another site cannot read the POST's response, so the POST alone never counts. Delivery is
+      // confirmed only by reading back what the Sheet stored (a read-only JSONP call, Google's documented way for a page to read a
+      // web app across sites) and matching this session, this version and a hash of the exact body sent.
+      const body = JSON.stringify(p), sha = await sha32(body);
+      try { await fetch(col.url, { method: 'POST', mode: 'no-cors', body, signal: ctl.signal }); }
+      catch (e) { if (ctl.signal.aborted) throw new Error('timeout'); }   // any other error: the read-back decides
+      const r = await jsonp(col.url + (col.url.indexOf('?') < 0 ? '?' : '&') + 'id=' + encodeURIComponent(p.session.id) + '&seq=' + p.seq, 15000);
+      // a final send (the answers) must be stored exactly; a newer or different stored version makes the page re-send it as a newer version
+      if (r && r.ok === true && r.id === p.session.id && r.seq > p.seq && p.final) throw new Error('unconfirmed newer ' + r.seq);
+      if (!r || r.ok !== true || r.id !== p.session.id || !(r.seq > p.seq || (r.seq === p.seq && r.sha === sha)))
+        throw new Error('unconfirmed ' + (!r ? 'no answer' : r.ok && r.seq === p.seq ? 'mismatch' : (r.refusedLater || r.error || 'stored ' + r.seq)));
+      return r.receipt;
+    } finally { clearTimeout(to); }
+  }
+  async function sha32(t) { return hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t))).slice(0, 32); }
+  let jn = 0;
+  function jsonp(url, ms) { return new Promise((res) => { const cb = '__fsw' + Date.now().toString(36) + (jn++), sc = document.createElement('script'); let t = null;
+    const done = (v) => { clearTimeout(t); window[cb] = function () {}; sc.remove(); res(v); };
+    window[cb] = (v) => done(v); sc.onerror = () => done(null); t = setTimeout(() => done(null), ms);
+    sc.src = url + '&cb=' + cb; document.head.appendChild(sc); }); }
+  async function flush() {
+    if (W.sending) { W.again = true; return; } W.sending = true;
+    let bad = false;   // after a failure, newer versions wait for the automatic retry rather than another 20 s attempt straight away
+    try { do { W.again = false; const ob = load(OUTBOX);
+      for (const id of Object.keys(ob)) { const p = ob[id];
+        try { const rc = await postOne(p); const cur = load(OUTBOX); if (cur[id] && cur[id].seq <= p.seq) { delete cur[id]; keep(OUTBOX, cur); } const rs = load(RECEIPTS); rs[id] = { receipt: rc, seq: p.seq, final: p.final, at: new Date().toISOString() }; keep(RECEIPTS, rs); W.log.push(['ok', id, p.seq, rc]); if (session && id === session.id) W.failed = null;
+          if (p.final && !load(OUTBOX)[id]) { const ks = load(KEYS); delete ks[id]; keep(KEYS, ks); } }
+        catch (e) { bad = true; const m = String(e.message || e); W.log.push(['fail', id, p.seq, m]); if (!session || id === session.id) W.failed = m;
+          const b = /^unconfirmed (mismatch|newer (\d+))/.exec(m);   // re-queue as a version newer than what is stored
+          if (b) { const cur = load(OUTBOX); if (cur[id] && cur[id].seq === p.seq) { const n = Math.max(p.seq, +(b[2] || 0)) + 1; cur[id].seq = n; cur[id].session.web.seq = n; keep(OUTBOX, cur);
+            if (session && session.id === id && session.web) { session.web.seq = Math.max(session.web.seq, n); saveSession(); } } } } }
+    } while (W.again && !bad); } finally { W.sending = false; renderSend(); if (Object.keys(load(OUTBOX)).length) retryLater(); else retryN = 0; }
+  }
+  let retryT = null, retryN = 0;
+  function retryLater() { if (retryT) return; const d = [5, 15, 30, 60, 120][Math.min(retryN++, 4)] * 1000; retryT = setTimeout(() => { retryT = null; flush(); }, d); }
+  addEventListener('online', () => { retryN = 0; flush(); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && session && session.web && !session.finished && C.collector.type !== 'formspree') checkpoint(false); });
+
+  // ---------------------------------------------------------------- the thank-you screen: "arrived" only after the collector's receipt
+  function renderSend() { if ($('w-thanks').hidden) return; const s = session, id = s && s.id, ob = load(OUTBOX), rs = load(RECEIPTS), st = $('w-send-status');
+    const pending = id && ob[id], rc = id && rs[id];
+    if (!pending && rc && rc.final) { st.textContent = 'Your results arrived (receipt ' + rc.receipt + '). Thank you, you can close this page.'; st.className = 'ok'; $('w-send-actions').hidden = true; return; }
+    if (W.sending || (pending && !W.failed)) { st.textContent = 'Sending your results…'; st.className = ''; $('w-send-actions').hidden = true; return; }
+    st.textContent = (W.failed === 'not_configured' ? 'Results cannot be sent from this copy of the test.' : 'Your results have not arrived yet.') + ' They are kept on this phone and will be sent again automatically. You can also try now, or save a copy and send it to the person who invited you.';
+    st.className = 'bad'; $('w-send-actions').hidden = false; }
+  $('w-retry').addEventListener('click', () => { W.failed = null; retryN = 0; renderSend(); flush(); });
+  $('w-save').addEventListener('click', () => { const s = session; if (!s) return; const name = 'firestorm-test-' + (s.web ? s.web.codeHash.slice(0, 8) : 'x') + '-' + s.id + '.json';
+    try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(s, null, 1)], { type: 'application/json' })); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 60000); $('w-save-note').hidden = false; $('w-save-note').textContent = 'Saved as ' + name + '.'; } catch (e) { $('w-save-note').hidden = false; $('w-save-note').textContent = 'Saving did not work in this browser.'; } });
+
+  // ---------------------------------------------------------------- consent and code screens
+  $('w-agree').addEventListener('change', () => { $('w-go').disabled = !$('w-agree').checked; });
+  $('w-go').addEventListener('click', () => { if (!$('w-agree').checked || !W.code) return; begin(); });
+  $('w-code-go').addEventListener('click', async () => { const c = norm($('w-code-in').value), inv = await lookup(c);
+    if (!inv) { $('w-code-msg').textContent = 'That code was not recognised. Check it and try again.'; return; }
+    W.code = inv; W.entry = 'typed'; toConsent(); });
+  $('w-resume-go').addEventListener('click', () => { $('resume').click(); });   // the app's own resume
+  function toConsent() { $('w-back-note').hidden = !priorFirstVisit(W.code.hash); $('w-agree').checked = false; $('w-go').disabled = true; $('w-storage-note').hidden = canStore(); wShow('w-start'); }
+
+  // ---------------------------------------------------------------- page load: closed study, unsent results, a game in progress, then the invitation
+  async function boot() {
+    relabel(); setInterval(tick, 1000);
+    if (C.open === false) return wShow('w-closed');
+    if (!(window.crypto && crypto.subtle)) { wShow('w-code'); $('w-code-msg').textContent = 'Please open the test link exactly as it was sent (it must start with https://).'; $('w-code-go').disabled = true; return; }
+    let cur = null; try { cur = localStorage.getItem(LS_CURRENT); } catch (e) {}
+    const list = await allStored(), open = cur && list.find(s => s.id === cur && !s.finished && s.web);
+    const ob = load(OUTBOX); if (Object.keys(ob).length) flush();
+    if (open) return wShow('w-resume');
+    // finished but the questions were never sent (page closed on the questions screen) within the last 2 hours: ask them again
+    const latest = (a) => a.sort((x, y) => (x.web.consentAt < y.web.consentAt ? -1 : 1)).slice(-1)[0];
+    const q = latest(list.filter(s => s.web && s.finished && !s.web.answered && Date.now() - Date.parse(s.web.consentAt) < 2 * 3600e3));
+    if (q) { session = q; show('done'); $('done-eyebrow').textContent = q.web.endedBy === 'time' ? "Time's up" : 'Finished'; return; }
+    const c = norm(decodeURIComponent((location.hash || '').replace(/^#(c=)?/, ''))), inv = await lookup(c);
+    if (inv) { W.code = inv; W.entry = 'link'; return toConsent(); }
+    const last = latest(list.filter(s => s.web && s.finished));
+    if (last && ob[last.id]) { session = last; wShow('w-thanks'); return renderSend(); }
+    wShow('w-code'); if (c) $('w-code-msg').textContent = 'That link\'s code was not recognised. Type the code from your invitation.';
+  }
+  boot();
+})();
+</script>
+</body></html>
