@@ -158,7 +158,9 @@ th { color: var(--soft); font-weight: 500; }
 <section id="w-resume" class="col pad sheet" hidden>
   <div class="eyebrow">Wintermere · game test</div>
   <h1>Your game is still open</h1>
-  <p>Carry on where you left off. The street you were on starts again from its beginning.</p>
+  <p>Continuing starts the street you were on again from its beginning. The pieces you had placed on it are not brought back.</p>
+  <p>Anything you already finished stays finished, with its score. If you had just finished a street, its choice appears again.</p>
+  <p>Time away from this page does not count toward the test time.</p>
   <button class="go" type="button" id="w-resume-go">Continue</button>
 </section>
 
@@ -1011,7 +1013,7 @@ window.__S2__ = { get game() { return game; }, get session() { return session; }
 loadImages().then(() => { show('setup'); refreshSetup(); requestAnimationFrame(frame); });
 </script>
 <script>
-const WEB_CONFIG = {"study":"fs-q013-web","build":"fs-q013-web-2","open":true,"collector":{"type":"appsscript","url":"https://script.google.com/macros/s/AKfycbxHXuPuQ0fsS87lIK9kT41QvRACPbvk5mq1aBvG62yiHIzUvBOubkI4C2_RHJrwGOxi/exec"},"codes":{"a8d7a7818561ef0d":[1,0,"P1"],"380f9ce95e82e806":[2,0,"P2"],"25454553a35322ca":[3,0,"P3"],"c2e54f86e7db9235":[4,0,"P4"],"532a31e9ad0b5441":[5,0,"P5"],"d94a6ac1b29d8033":[6,0,"P6"],"cf88ddb2a8e53cb6":[7,0,"P7"],"9bd5ec5ec2e5b270":[8,0,"P8"],"fcf0dd3512b9bcaa":[9,0,"P9"],"2a895402c6a6f50a":[10,0,"P10"],"7f054a81ed5e0d4a":[11,0,"P11"],"329751e2647fd274":[12,0,"P12"],"2747b4d005594042":[13,0,"P13"],"7983307c0e9735f4":[14,0,"P14"],"ab63fa1da0583511":[15,0,"P15"],"5c3a776f50f2f5f7":[16,0,"P16"],"c80f902a7eb130a0":[2,1,"T1"],"fdc0f7600b9febe4":[1,1,"T2"]},"limits":{"noWinMs":600000,"afterWinMs":300000},"checkpointMs":60000};
+const WEB_CONFIG = {"study":"fs-q013-web","build":"fs-q015-web-3","open":true,"collector":{"type":"appsscript","url":"https://script.google.com/macros/s/AKfycbxHXuPuQ0fsS87lIK9kT41QvRACPbvk5mq1aBvG62yiHIzUvBOubkI4C2_RHJrwGOxi/exec"},"codes":{"a8d7a7818561ef0d":[1,0,"P1"],"380f9ce95e82e806":[2,0,"P2"],"25454553a35322ca":[3,0,"P3"],"c2e54f86e7db9235":[4,0,"P4"],"532a31e9ad0b5441":[5,0,"P5"],"d94a6ac1b29d8033":[6,0,"P6"],"cf88ddb2a8e53cb6":[7,0,"P7"],"9bd5ec5ec2e5b270":[8,0,"P8"],"fcf0dd3512b9bcaa":[9,0,"P9"],"2a895402c6a6f50a":[10,0,"P10"],"7f054a81ed5e0d4a":[11,0,"P11"],"329751e2647fd274":[12,0,"P12"],"2747b4d005594042":[13,0,"P13"],"7983307c0e9735f4":[14,0,"P14"],"ab63fa1da0583511":[15,0,"P15"],"5c3a776f50f2f5f7":[16,0,"P16"],"c80f902a7eb130a0":[2,1,"T1"],"fdc0f7600b9febe4":[1,1,"T2"]},"limits":{"noWinMs":600000,"afterWinMs":300000},"checkpointMs":60000};
 </script>
 <script>
 // Firestorm web test shell (Q-013). Runs after Q-012R's app.js, which is included byte for byte and decides everything about play.
@@ -1020,6 +1022,12 @@ const WEB_CONFIG = {"study":"fs-q013-web","build":"fs-q013-web-2","open":true,"c
 // 10 minutes without a natural Street 1 win or 5 minutes after one; asks the player the five neutral questions; records coarse
 // device data (no browser string); and sends each session to the collector, keeping it in an outbox on the phone until the
 // collector confirms receipt (retry, and "Save a copy" as the manual fallback).
+// Q-015 (build fs-q015-web-3): the two limits run on an ELIGIBLE clock, not wall time since consent. Eligible time counts only while
+// this session's game (play screen, its menu, the victory moment and the choice buttons) is on screen in a visible page; it stops
+// while the page is hidden, closed or waiting on the "still open" screen, and it is never reset by Retry, Play it again or a reload.
+// A placement made before the limit is resolved in full (burn, homes, a win) before the limit can end the session. The wall-clock
+// fields of Q-012R are kept as they were; the eligible clock, its events and the actual ending are added under session.web.
+// Sessions of an earlier build found on the phone are never resumed or changed here; their queued uploads are still sent as stored.
 (function () {
   'use strict';
   const C = WEB_CONFIG, $ = (id) => document.getElementById(id);
@@ -1069,26 +1077,100 @@ const WEB_CONFIG = {"study":"fs-q013-web","build":"fs-q013-web-2","open":true,"c
   function priorFirstVisit(hash) { try { return Object.values(JSON.parse(localStorage.getItem(LS_SESSIONS) || '{}')).some(s => s.kind === 'session' && s.web && s.web.codeHash === hash); } catch (e) { return false; } }
   function begin() { const inv = W.code; settings.visit = priorFirstVisit(inv.hash) ? 'followup' : 'first'; settings.assist = 'off';
     $('pcode').value = inv.label; audio(); flow.begin('session', DATA.ARMS[inv.slot - 1], inv.slot);
-    session.web = { build: C.build, study: C.study, codeHash: inv.hash, test: inv.test, entry: W.entry, consentAt: new Date().toISOString(), consentVersion: 1, limits: C.limits, seq: 0, answered: false, endedBy: null };
+    session.web = { build: C.build, study: C.study, codeHash: inv.hash, test: inv.test, entry: W.entry, consentAt: new Date().toISOString(), consentVersion: 1, limits: C.limits, seq: 0, answered: false, endedBy: null,
+      clock: newClock(), ev: [], endedAt: null, endReason: null, endEligibleMs: null };
+    W.active = true; W.pendingStop = null; W.lastT = null; accrue(); ev('start'); ev('attempt', 1);   // the eligible clock starts with the game, not at consent
     const ks = load(KEYS); ks[session.id] = inv.key; keep(KEYS, ks);   // kept on this phone only, for resends; never in the record
     saveSession(); W.lastSig = ''; checkpoint(false); }
+
+  // ---------------------------------------------------------------- Q-015: the eligible clock (visible game time), stored in the record and on the phone
+  // eligibleMs grows only while this build's unfinished session is active (game started or resumed in this page load) and the page is
+  // visible. Each credit is the time since the previous one, at most CAP ms: a longer gap means timers were not running (a sleeping or
+  // frozen page), and that time is excluded and logged as a gap. It is saved with the session every second, so a reload or a closed
+  // page loses at most about a second of counted time (in the player's favour); it is never estimated or filled in afterwards.
+  const CAP = 3000, EV_MAX = 400;
+  const newClock = () => ({ v: 1, basis: 'visible_game_time', eligibleMs: 0, win1Ms: null, hides: 0, awayMs: 0, reloadGaps: 0, reloadGapMs: 0, gaps: 0, gapMs: 0, savedAt: Date.now(), moves: {}, deferrals: [], expired: null });
+  const clk = () => (session && session.web && session.web.build === C.build && session.web.clock) || null;
+  const counting = () => !!(clk() && W.active && !session.finished && document.visibilityState === 'visible' && !W.frozen);
+  function accrue() { const t = performance.now(), c = clk();
+    if (c && W.lastT != null) { let d = t - W.lastT; if (d > CAP) { c.gaps++; c.gapMs += Math.round(d - CAP); d = CAP; } if (d > 0) c.eligibleMs += d; }
+    W.lastT = counting() ? t : null; }
+  const E = () => Math.round(clk().eligibleMs);
+  function ev(type, detail) { const s = session, c = clk(); if (!c) return; const L = s.web.ev; if (L.length >= EV_MAX) return;
+    L.push(detail === undefined ? [type, sms(), E()] : [type, sms(), E(), detail]); }
+  // which limit, if any, has been reached: 10 eligible minutes without a Street 1 win, or 5 after it
+  function overWhy() { const s = session, c = clk(); if (!c || s.finished) return null; const w1 = s.wins.find(w => w.board === 1);
+    if (!w1) return c.eligibleMs >= C.limits.noWinMs ? 'web_time_limit_no_win' : null;
+    return c.eligibleMs - (c.win1Ms != null ? c.win1Ms : c.eligibleMs) >= C.limits.afterWinMs ? 'web_time_limit_after_win' : null; }
+  // a limit reached while a placement is resolving waits for it to finish (W.inDrop), so a burn that wins is never cut short
+  function budgetCheck() { const s = session, c = clk(); if (!c || s.finished || !W.active) return; accrue(); const why = overWhy(); if (!why) return;
+    if (W.inDrop) { if (!c.deferrals.some(d => !d.outcome)) { c.deferrals.push({ why, e: E(), t: sms() }); ev('limit_deferred', why); } return; }
+    timeUp(why); }
+  function afterAction() { const s = session, c = clk(); if (!c || s.finished) return;
+    if (W.pendingStop) { const why = W.pendingStop; W.pendingStop = null; return flow.stop(why); }
+    budgetCheck(); c.deferrals.forEach(d => { if (!d.outcome) d.outcome = s.finished ? 'ended_after_the_placement' : 'placement_won_street_1'; }); }
+  document.addEventListener('visibilitychange', () => { const s = session, c = clk(); if (!c || s.finished) { W.lastT = null; return; }
+    accrue(); if (!W.active) return;
+    if (document.visibilityState === 'hidden') { W.hiddenAt = Date.now(); c.hides++; ev('hide'); c.savedAt = Date.now(); saveSession(); }
+    else { if (W.hiddenAt) { c.awayMs += Date.now() - W.hiddenAt; W.hiddenAt = null; } ev('show'); budgetCheck(); } });
+  addEventListener('pagehide', () => { accrue(); W.frozen = true; W.lastT = null; const c = clk(); if (c && !session.finished) { c.savedAt = Date.now(); saveSession(); } });
+  addEventListener('pageshow', () => { W.frozen = false; accrue(); });
 
   // ---------------------------------------------------------------- the two time limits, and checkpoints while playing
   const sig = (s) => s.attempts.length + ':' + s.attempts.reduce((n, a) => n + a.moves.length, 0) + ':' + s.choices.length + ':' + (s.finished ? 1 : 0) + ':' + JSON.stringify(s.observer || {}).length;
   function tick() {
     const s = session; if (!s || s.kind !== 'session' || !s.web) return;
-    if (!s.finished) { const t = sms(), w1 = s.wins.find(w => w.board === 1);
-      if (!w1 && t >= C.limits.noWinMs) return timeUp('web_time_limit_no_win');
-      if (w1 && t - w1.t >= C.limits.afterWinMs) return timeUp('web_time_limit_after_win'); }
+    const c = clk(); if (c && !s.finished && W.active) { budgetCheck(); if (!s.finished && counting()) { c.savedAt = Date.now(); saveSession(); } }
     if (!s.finished && C.checkpointMs && Date.now() - W.lastSend >= C.checkpointMs && sig(s) !== W.lastSig) checkpoint(false);   // minute checkpoints only while playing
   }
-  function timeUp(why) { session.web.endedBy = 'time'; flow.stop(why); }
+  function timeUp(why) { const s = session, c = clk(); if (!c || s.finished) return;
+    if (W.inDrop) return budgetCheck();
+    c.expired = { why, e: E(), t: sms(), at: new Date().toISOString() }; ev('limit', why); s.web.endedBy = 'time'; flow.stop(why); }
   const stop0 = flow.stop.bind(flow);
   flow.stop = function (why) { if (why === 'observer_ended') why = 'player_finished';   // in this build the ← menu belongs to the player
+    const c = clk();
+    if (c && session.finished) return;                                                     // a session ends once
+    if (c && W.inDrop) { if (!W.pendingStop) { W.pendingStop = why; ev('stop_waits_for_placement', why); } return; }   // finish the placement first
+    if (c) accrue();
     stop0(why); if (!session.web) return;
     if (!session.web.endedBy) session.web.endedBy = why === 'player_finished' ? 'player' : 'game';
+    if (c) { session.web.endedAt = new Date().toISOString(); session.web.endReason = why; session.web.endEligibleMs = E(); ev('end', why); W.active = false; W.lastT = null; }
     $('done-eyebrow').textContent = session.web.endedBy === 'time' ? "Time's up" : 'Finished';
     saveSession(); checkpoint(false); };
+  // the game's own steps, observed (never changed) so that eligible time is stamped on them and nothing happens to a finished session
+  const drop0 = HFG.drop.bind(HFG), win0 = flow.win.bind(flow), fail0 = flow.fail.bind(flow), pw0 = flow.presentWin.bind(flow), pf0 = flow.presentFail.bind(flow),
+    choose0 = flow.choose.bind(flow), sb0 = flow.startBoard.bind(flow), res0 = flow.resume.bind(flow), sum0 = flow.summarize.bind(flow);
+  W.inDrop = 0;
+  HFG.drop = async function (i, gx, gy) {
+    const s = session, c = clk(); if (!c || s.finished) return drop0(i, gx, gy);
+    accrue(); const why = W.inDrop ? null : overWhy();
+    if (why) { timeUp(why); return null; }                                                 // the limit was reached before this placement: it is not made
+    const e = E(), rec = HFG.rec, n0 = rec ? rec.moves.length : 0; W.inDrop++; let r = null;
+    try { r = await drop0(i, gx, gy); } finally { W.inDrop--; }
+    if (rec && rec.moves.length > n0) { const k = s.attempts.indexOf(rec); (c.moves[k] = c.moves[k] || []).push(e); }   // eligible time of each placement, by attempt
+    if (!W.inDrop) afterAction();
+    return r; };
+  flow.win = function (G, how) { const s = session, c = clk(); if (c) { if (s.finished) return; accrue();
+      if (G.board === 1 && c.win1Ms == null && !s.wins.some(w => w.board === 1)) c.win1Ms = E(); ev('win', G.board); }
+    return win0(G, how); };
+  flow.fail = function (G) { if (clk() && session.finished) return; return fail0(G); };
+  flow.presentWin = function (b) { if (clk() && session.finished) return; ev('offer', 'win' + b); return pw0(b); };
+  flow.presentFail = function (b) { if (clk() && session.finished) return; ev('offer', 'fail' + b); return pf0(b); };
+  // a choice made after the limit was reached is still recorded; it then ends the session instead of starting another board
+  flow.choose = function (at, picked, shown, then) { const c = clk();
+    if (c && !session.finished) { accrue(); ev('choice', at + ':' + picked); const why = overWhy(); if (why && picked !== 'stop') return choose0(at, picked, shown, () => timeUp(why)); }
+    return choose0(at, picked, shown, then); };
+  flow.startBoard = function (board, resumed) { const r = sb0(board, resumed); if (clk() && session.attempts.length > 1) ev('attempt', board); return r; };
+  flow.resume = function () { const s = session, c = clk();
+    if (c) { const gap = Math.max(0, Date.now() - (c.savedAt || Date.now())); c.reloadGaps++; c.reloadGapMs += gap; W.active = true; W.pendingStop = null; W.lastT = null; accrue(); ev('resume', gap); }
+    return res0(); };
+  // the summary keeps every Q-012R field; the five-minute count follows the eligible clock (the wall-clock count is kept beside it)
+  flow.summarize = function () { sum0(); const s = session, c = clk(), S = s && s.summary; if (!c || !S) return; accrue();
+    S.clock = 'eligible-v1'; S.eligible_ms_total = E(); S.eligible_ms_to_win1 = c.win1Ms; S.eligible_ms_after_win1 = c.win1Ms == null ? null : E() - c.win1Ms;
+    S.placements_after_win1_5min_wall = S.placements_after_win1_5min;
+    if (c.win1Ms != null) { const wi = s.attempts.findIndex(a => a.board === 1 && a.won); let n = 0;
+      s.attempts.forEach((a, k) => { if (k > wi) n += (c.moves[k] || []).filter(e => e - c.win1Ms <= C.limits.afterWinMs).length; });
+      S.placements_after_win1_5min = n; } };
   // "Send my answers": the app saves them into the record and calls toSetup(); here that becomes the final send
   // the observer-only fields of Q-012R's end screen are not shown in this build: stored as null ("not asked"), never as 0 or ""
   const NOT_ASKED = ['planned', 'neutral', 'plans', 'setups', 'surprises', 'frustration', 'askedMore', 'followup'];
@@ -1176,12 +1258,15 @@ const WEB_CONFIG = {"study":"fs-q013-web","build":"fs-q013-web-2","open":true,"c
     if (C.open === false) return wShow('w-closed');
     if (!(window.crypto && crypto.subtle)) { wShow('w-code'); $('w-code-msg').textContent = 'Please open the test link exactly as it was sent (it must start with https://).'; $('w-code-go').disabled = true; return; }
     let cur = null; try { cur = localStorage.getItem(LS_CURRENT); } catch (e) {}
-    const list = await allStored(), open = cur && list.find(s => s.id === cur && !s.finished && s.web);
+    // Q-015: only a session of THIS build is resumed or asked its questions again; a session of an earlier build is left exactly as
+    // it is on the phone (no time is invented for it, nothing is re-sent from it). Its uploads already in the outbox go out unchanged.
+    const mine = (s) => s.web && s.web.build === C.build;
+    const list = await allStored(), open = cur && list.find(s => s.id === cur && !s.finished && mine(s));
     const ob = load(OUTBOX); if (Object.keys(ob).length) flush();
     if (open) return wShow('w-resume');
     // finished but the questions were never sent (page closed on the questions screen) within the last 2 hours: ask them again
     const latest = (a) => a.sort((x, y) => (x.web.consentAt < y.web.consentAt ? -1 : 1)).slice(-1)[0];
-    const q = latest(list.filter(s => s.web && s.finished && !s.web.answered && Date.now() - Date.parse(s.web.consentAt) < 2 * 3600e3));
+    const q = latest(list.filter(s => mine(s) && s.finished && !s.web.answered && Date.now() - Date.parse(s.web.consentAt) < 2 * 3600e3));
     if (q) { session = q; show('done'); $('done-eyebrow').textContent = q.web.endedBy === 'time' ? "Time's up" : 'Finished'; return; }
     const c = norm(decodeURIComponent((location.hash || '').replace(/^#(c=)?/, ''))), inv = await lookup(c);
     if (inv) { W.code = inv; W.entry = 'link'; return toConsent(); }
