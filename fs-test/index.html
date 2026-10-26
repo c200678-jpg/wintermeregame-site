@@ -686,6 +686,14 @@ const STREETS = {
   B: { homes: [{ x: 1.3, s: 1.15, roof: '#d9c7b0' }, { x: 4.6, s: 1.5, roof: '#c8d6e6' }, { x: 7.0, s: 1.25, roof: '#b9c9a8' }], trees: [{ x: 2.8, s: 1.3 }, { x: 3.25, s: 0.9 }] },
 };
 const GOAL = 'Warm all 3 homes';
+// Q-018 warmth trail (display only; approved Oct 25 2026). Each distinct cell a burn clears sends one small ember to the window of
+// the home that cell's warmth really goes to: homes fill in order, 40 cells each, so a burn that finishes one home carries on into
+// the next. The window fills as its embers land. Warmth past the 120-cell target is not credited: those embers rise and fade.
+// Nothing here changes the game state, score, records, sounds, input lock or any timing: embers leave on the burn's own schedule and
+// all land before the existing lock ends. Reduced motion: no embers and no pulse; the windows show the true count at once (as before).
+const TRAIL = { LAUNCH: 200, FLY: 300, PULSE: 350 };
+function reducedMotion() { try { return !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } }
+function windowCenter(street, k) { const hm = STREETS[street].homes[k], s = cell * hm.s, by = cell * (BAND - 0.21) - s * 0.4 - s * 0.02, h = s * 0.42; return { x: ox + cell * hm.x, y: by + h * 0.47 }; }
 function drawCottage(x, y, s, part, blaze, roof) {   // Core Loop Lab drawHome, with the window filling as its 40 cells burn
   const w = s * 0.78, h = s * 0.42, bx = x - w / 2, by = y - s * 0.02;
   // Q-011: a home that is not yet warm sits in a soft cold halo, fading as it warms; its window is frosted until it fills
@@ -708,7 +716,7 @@ function drawPine(x, y, s) { ctx.fillStyle = '#4a3a2c'; ctx.fillRect(x - s * 0.0
 const HFG = {
   // opts: { board: 1|2, street: 'A'|'B', start: 'S1'|'W2', rec, scoreStart, fsStart }
   start(opts) {
-    Object.assign(this, { board: opts.board, street: opts.street, rec: opts.rec, drag: null, busy: false, anim: null, over: false, frozen: false, won: false, allLit: false, fsCount: opts.fsStart || 0, bonus: 0, fx: null, banner: null, pv: null, victory: null, homesLit: 0 });
+    Object.assign(this, { board: opts.board, street: opts.street, rec: opts.rec, drag: null, busy: false, anim: null, over: false, frozen: false, won: false, allLit: false, fsCount: opts.fsStart || 0, bonus: 0, fx: null, banner: null, pv: null, victory: null, homesLit: 0, trail: [] });
     if (opts.start === 'W2') { this.g = FS.replay(DATA.W2.seed, DATA.W2.prefix); this.replayOk = FS.boardKey(this.g) === DATA.W2.key; this.seed = DATA.W2.seed; }
     else { this.seed = window.__S2_TEST_S1__ != null ? window.__S2_TEST_S1__ : DATA.S1; this.g = HF.newGame(this.seed); HF.deal(this.g); this.replayOk = true; }   // __S2_TEST_S1__: test runs only
     this.burnedBase = this.g.burned; this.scoreBase = this.g.score; this.scoreStart = opts.scoreStart || 0;
@@ -718,6 +726,12 @@ const HFG = {
     if (this.rec) { this.rec.replayOk = this.replayOk; this.rec.opp_start = FS.opportunities(this.g).length; this.rec.key_start = FS.boardKey(this.g); }
   },
   boardBurned() { return this.g.burned - this.burnedBase; },
+  // Q-018: the windows show the true count less the warmth still in the air (never above the target, never going back)
+  shownBurned(t) { const bb = Math.min(TARGET, this.boardBurned()); if (reducedMotion()) return bb; let air = 0; for (const m of this.trail) if (m.home >= 0 && m.land > t) air++; return Math.max(0, bb - air); },
+  trailLaunch(e, times) { if (reducedMotion()) return;
+    const after = this.boardBurned(), before = after - e.cleared, credit = Math.max(0, Math.min(TARGET, after) - Math.min(TARGET, before));
+    Object.keys(times).map(k => { const [c, r] = k.split(',').map(Number); return { c, r, go: times[k] + TRAIL.LAUNCH }; }).sort((a, b) => a.go - b.go)
+      .forEach((m, j) => { m.home = j < credit ? Math.floor((before + j) / PER_HOME) : -1; m.land = m.go + TRAIL.FLY; this.trail.push(m); }); },
   score() { return this.scoreStart + (this.g.score - this.scoreBase) + this.bonus; },
   meter() { const label = flow.boardLabel(this.board);
     setMeter((label ? '<span class="boardno">' + label + '</span>' : '') + '<span class="score">' + this.score() + '</span><span class="fs-chip' + (this.fsCount ? ' lit' : '') + '">Firestorms ' + this.fsCount + '</span>'); },
@@ -761,7 +775,7 @@ const HFG = {
     e.waves[0].forEach(([cc, r]) => { const dist = Math.min(e.rows.includes(r) ? Math.abs(cc - pc[0]) : 99, e.cols.includes(cc) ? Math.abs(r - pc[1]) : 99); times[cc + ',' + r] = t0 + dist * 45; });
     let tEnd = Math.max(...Object.values(times));
     e.waves.slice(1).forEach((wave) => wave.forEach(([cc, r, fc, fr]) => { const t = (times[fc + ',' + fr] || tEnd) + 150; times[cc + ',' + r] = t; tEnd = Math.max(tEnd, t); }));
-    this.anim = { times, before: landed, t0 };
+    this.anim = { times, before: landed, t0 }; this.trailLaunch(e, times);
     SND.crackle(e.cleared);
     const pops = {};
     e.waves.slice(1).forEach((wave) => { wave.forEach(([cc, r, fc, fr]) => { if (this.anim.before[fr][fc] === 2) { const t = times[fc + ',' + fr] + 40 - t0; const k = fc + ',' + fr; if (!pops[k]) { pops[k] = 1; setTimeout(() => { SND.pop(1); shake.until = now() + 160; shake.amp = 5; burst(ox + fc * cell + cell / 2, oy + fr * cell + cell / 2, 16, { speed: cell * 4, r: cell * 0.09, c: 'rgba(255,200,90,A)', life: 500 }); }, t); } } }); });
@@ -788,13 +802,15 @@ const HFG = {
     ctx.globalAlpha = 1;
     if (pine) cone(x + s / 2, y + s / 2, s * 0.9, a); },
   drawStreet(t) {
-    const S = STREETS[this.street], bb = this.boardBurned(), groundY = cell * (BAND - 0.21), vk = this.victory ? 0.5 + 0.5 * Math.sin((t - this.victory.t0) / 120) : 0;
+    const S = STREETS[this.street], bb = this.shownBurned(t), groundY = cell * (BAND - 0.21), vk = this.victory ? 0.5 + 0.5 * Math.sin((t - this.victory.t0) / 120) : 0;
     // Q-011: the goal, beside the homes it names; the same words on every board, in both arms
     ctx.fillStyle = '#e4edf5'; ctx.font = '700 ' + Math.max(12, Math.round(cell * 0.45)) + 'px ' + font(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(GOAL, ox + cell * 4, cell * 0.34);
     ctx.fillStyle = '#20232e'; ctx.fillRect(ox - 3, groundY, cell * 8 + 6, Math.max(2, cell * 0.06));
     S.trees.forEach(tr => drawPine(ox + cell * tr.x, groundY, cell * tr.s));
     const chim = [];
     S.homes.forEach((hm, k) => { const part = this.allLit ? 1 : Math.max(0, Math.min(1, (bb - k * PER_HOME) / PER_HOME)); chim.push(drawCottage(ox + cell * hm.x, groundY - cell * hm.s * 0.4, cell * hm.s, part, this.victory ? vk : 0, hm.roof)); });
+    // Q-018: a window glows softly for a moment as its embers land (not during the victory moment, not with reduced motion)
+    if (!this.victory && !reducedMotion()) S.homes.forEach((hm, k) => { let p = 0; for (const m of this.trail) if (m.home === k && t >= m.land) p = Math.max(p, 1 - (t - m.land) / TRAIL.PULSE); if (p > 0) { const w = windowCenter(this.street, k); glow(w.x, w.y, cell * hm.s * 0.55, 0.32 * p); } });
     if (this.victory && t - (this.victory.lastSmoke || 0) > 140) { this.victory.lastSmoke = t; chim.forEach(ch => burst(ch.cx, ch.cy, 1, { dir: -Math.PI / 2, spread: 0.6, speed: cell * 0.9, r: cell * 0.12, c: 'rgba(205,210,220,A)', a: 0.55, life: 1400 })); }
   },
   draw(t) {
@@ -828,7 +844,17 @@ const HFG = {
     if (!this.frozen) for (let i = 0; i < 3; i++) { const piece = g.tray[i]; if (!piece || (this.drag && this.drag.i === i)) continue; const r = this.trayRect(i), b = this.pieceBox(piece), s = Math.min(cell * 0.66, (r.w - 10) / b.w, (r.h - 10) / b.h);
       const fits = HF.anyFit(g, piece), x0 = r.x + (r.w - b.w * s) / 2, y0 = r.y + (r.h - b.h * s) / 2;
       piece.cells.forEach(([dx, dy], k) => this.drawPieceCell(piece.pine[k] ? 2 : 1, x0 + dx * s, y0 + dy * s, s, fits ? 1 : 0.35)); }
+    this.drawTrail(t);
   },
+  drawTrail(t) { if (!this.trail.length) return; if (reducedMotion()) { this.trail = []; return; } this.trail = this.trail.filter(m => t < m.land + TRAIL.PULSE);
+    for (const m of this.trail) { if (t < m.go || t >= m.land) continue;
+      const k = (t - m.go) / TRAIL.FLY, q = k * k * (3 - 2 * k), sx = ox + m.c * cell + cell / 2, sy = oy + m.r * cell + cell / 2; let x, y, a, r;
+      if (m.home >= 0) { const w = windowCenter(this.street, m.home), cx = sx + (w.x - sx) * 0.2, cy = sy - (sy - w.y) * 0.8;
+        x = (1 - q) * (1 - q) * sx + 2 * (1 - q) * q * cx + q * q * w.x; y = (1 - q) * (1 - q) * sy + 2 * (1 - q) * q * cy + q * q * w.y; a = 0.9 - 0.3 * q; r = cell * (0.075 - 0.025 * q); }
+      else { x = sx; y = sy - cell * 0.7 * q; a = 0.8 * (1 - k); r = cell * 0.06; }   // past the target: rises and fades, warms nothing
+      ctx.globalAlpha = a * 0.35; ctx.fillStyle = '#ffb052'; ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, 6.283); ctx.fill();
+      ctx.globalAlpha = a; ctx.fillStyle = '#ffe1a0'; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.283); ctx.fill(); }
+    ctx.globalAlpha = 1; },
   drawBanner(t) { const b = this.banner; if (!b) return; const age = t - b.t0, life = 2200; if (age > life) { this.banner = null; return; }
     const a = Math.min(1, age / 140) * Math.min(1, (life - age) / 400), cx = ox + cell * 4, cy = oy + cell * b.row, w = cell * 7.4, h = cell * 2.5;
     ctx.globalAlpha = a; ctx.fillStyle = 'rgba(20,12,8,0.82)'; rr(cx - w / 2, cy - h / 2, w, h, cell * 0.3); ctx.fill(); ctx.strokeStyle = 'rgba(255,176,82,0.9)'; ctx.lineWidth = 2; ctx.stroke();
@@ -1013,7 +1039,7 @@ window.__S2__ = { get game() { return game; }, get session() { return session; }
 loadImages().then(() => { show('setup'); refreshSetup(); requestAnimationFrame(frame); });
 </script>
 <script>
-const WEB_CONFIG = {"study":"fs-q013-web","build":"fs-q015-web-3","open":true,"collector":{"type":"appsscript","url":"https://script.google.com/macros/s/AKfycbxHXuPuQ0fsS87lIK9kT41QvRACPbvk5mq1aBvG62yiHIzUvBOubkI4C2_RHJrwGOxi/exec"},"codes":{"a8d7a7818561ef0d":[1,0,"P1"],"380f9ce95e82e806":[2,0,"P2"],"25454553a35322ca":[3,0,"P3"],"c2e54f86e7db9235":[4,0,"P4"],"532a31e9ad0b5441":[5,0,"P5"],"d94a6ac1b29d8033":[6,0,"P6"],"cf88ddb2a8e53cb6":[7,0,"P7"],"9bd5ec5ec2e5b270":[8,0,"P8"],"fcf0dd3512b9bcaa":[9,0,"P9"],"2a895402c6a6f50a":[10,0,"P10"],"7f054a81ed5e0d4a":[11,0,"P11"],"329751e2647fd274":[12,0,"P12"],"2747b4d005594042":[13,0,"P13"],"7983307c0e9735f4":[14,0,"P14"],"ab63fa1da0583511":[15,0,"P15"],"5c3a776f50f2f5f7":[16,0,"P16"],"c80f902a7eb130a0":[2,1,"T1"],"fdc0f7600b9febe4":[1,1,"T2"]},"limits":{"noWinMs":600000,"afterWinMs":300000},"checkpointMs":60000};
+const WEB_CONFIG = {"study":"fs-q013-web","build":"fs-q018-web-1","open":true,"collector":{"type":"appsscript","url":"https://script.google.com/macros/s/AKfycbxHXuPuQ0fsS87lIK9kT41QvRACPbvk5mq1aBvG62yiHIzUvBOubkI4C2_RHJrwGOxi/exec"},"codes":{"a8d7a7818561ef0d":[1,0,"P1"],"380f9ce95e82e806":[2,0,"P2"],"25454553a35322ca":[3,0,"P3"],"c2e54f86e7db9235":[4,0,"P4"],"532a31e9ad0b5441":[5,0,"P5"],"d94a6ac1b29d8033":[6,0,"P6"],"cf88ddb2a8e53cb6":[7,0,"P7"],"9bd5ec5ec2e5b270":[8,0,"P8"],"fcf0dd3512b9bcaa":[9,0,"P9"],"2a895402c6a6f50a":[10,0,"P10"],"7f054a81ed5e0d4a":[11,0,"P11"],"329751e2647fd274":[12,0,"P12"],"2747b4d005594042":[13,0,"P13"],"7983307c0e9735f4":[14,0,"P14"],"ab63fa1da0583511":[15,0,"P15"],"5c3a776f50f2f5f7":[16,0,"P16"],"c80f902a7eb130a0":[2,1,"T1"],"fdc0f7600b9febe4":[1,1,"T2"]},"limits":{"noWinMs":600000,"afterWinMs":300000},"checkpointMs":60000};
 </script>
 <script>
 // Firestorm web test shell (Q-013). Runs after Q-012R's app.js, which is included byte for byte and decides everything about play.
