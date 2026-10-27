@@ -1,0 +1,1452 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><title>Firestorm · The Cold Lane (unlisted preview)</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"><style>:root{padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui}[hidden]{display:none!important}</style>
+<style>
+/* Layout: one phone column; the game scene is drawn full-bleed on a canvas in the capture's own 1080-wide space,
+   the observer screens (setup, notes, results) are plain forms in the same night palette. A single dark look: the game's night. */
+:root {
+  --night: #14141a;        /* the capture's sky */
+  --slate: #1e2230;        /* panels */
+  --line: #33394d;
+  --frost: #9fd3e6;        /* ice, the wind */
+  --ember: #ffb052;        /* fire, the call to act */
+  --text: #eef1f6;
+  --soft: #a9b1c3;
+  --good: #8fd694;
+  --display: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+html { box-sizing: border-box; height: 100%; }
+body { height: auto; min-height: 100%; }
+body { background: var(--night); color: var(--text); font-family: var(--display); font-size: 16px; line-height: 1.4;
+  -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+.col { max-width: 480px; margin: 0 auto; }
+.pad { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+button { font-family: var(--display); }
+button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+
+/* ---- the game ---- */
+#game { user-select: none; -webkit-user-select: none; }
+.hud { display: grid; grid-template-columns: 40px 1fr 64px; align-items: center; gap: 8px; padding-block: 8px 4px; min-height: 64px; }
+.restart { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--soft); font-size: 20px; line-height: 1; cursor: pointer; }
+.restart.ask { width: auto; }
+.goal { font-weight: 600; font-size: 17px; line-height: 1.2; color: var(--text); text-wrap: balance; transition: color .4s, text-shadow .4s; min-width: 0; }
+.goal.pulse { color: #fff4dc; text-shadow: 0 0 12px rgba(255,176,82,.7); }
+.vane { display: grid; justify-items: center; gap: 0; }
+.vane svg { width: 44px; height: 44px; overflow: visible; }
+.vane .arrow { transform-origin: 22px 22px; transition: transform .6s cubic-bezier(.3,.1,.2,1); }
+.vane .ring { fill: none; stroke: var(--line); stroke-width: 2; }
+.vane.pulse .ring { stroke: var(--frost); animation: vp 1s ease-in-out 3; }
+@keyframes vp { 50% { stroke-width: 5; } }
+.vane .lbl { font-size: 12px; letter-spacing: .08em; color: var(--frost); text-transform: lowercase; margin-top: -2px; }
+#game { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+#game.tall { height: auto; overflow: visible; }
+#game.tall .bar { position: sticky; bottom: 0; background: var(--night); z-index: 2; }
+.hud, .bar { flex: 0 0 auto; }
+.scene-wrap { flex: 1 1 auto; min-height: 0; position: relative; display: flex; justify-content: center; align-items: center; }
+#game.tall .scene-wrap { flex: 0 0 auto; }
+#scene { display: block; touch-action: pan-y; }
+#hit { position: absolute; touch-action: none; }
+.goal.warm-line { color: var(--ember); }
+.bar { min-height: 64px; display: grid; align-items: center; padding-block: 8px calc(10px + env(safe-area-inset-bottom, 0px)); }
+.progress { display: flex; gap: 10px; justify-content: center; align-items: center; color: var(--soft); font-size: 16px; font-weight: 600; }
+.progress i { width: 14px; height: 14px; border-radius: 3px; border: 2px solid var(--line); display: inline-block; }
+.progress i.done { background: var(--ember); border-color: var(--ember); box-shadow: 0 0 10px rgba(255,176,82,.6); }
+.progress i.now { border-color: var(--frost); }
+.next { width: 100%; min-height: 58px; border: 0; border-radius: 16px; background: var(--ember); color: #2a1606; font-weight: 700; font-size: 21px; cursor: pointer; box-shadow: 0 6px 24px rgba(255,150,60,.35); animation: rise .35s ease-out; }
+@keyframes rise { from { transform: translateY(14px); opacity: 0; } }
+.restart-ask { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; font-size: 16px; color: var(--soft); }
+.restart-ask button { border: 1px solid var(--line); background: var(--slate); color: var(--text); border-radius: 999px; padding: 6px 14px; font-size: 15px; cursor: pointer; }
+
+/* ---- observer screens ---- */
+.sheet { padding-block: 20px 40px; display: grid; gap: 18px; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--soft); }
+h1 { font-size: 26px; line-height: 1.15; margin: 0; text-wrap: balance; font-weight: 700; }
+h2 { font-size: 19px; margin: 0; font-weight: 600; text-wrap: balance; }
+p { margin: 0; color: var(--soft); max-width: 62ch; }
+.choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { border: 1px solid var(--line); background: var(--slate); color: var(--text); border-radius: 999px; padding: 8px 14px; font-size: 16px; cursor: pointer; }
+.chip[aria-pressed="true"] { border-color: var(--ember); background: #3a2a18; }
+.go { border: 0; border-radius: 12px; background: var(--ember); color: #2a1606; font-weight: 700; font-size: 18px; padding: 14px 18px; cursor: pointer; }
+.go:disabled { opacity: .45; cursor: default; }
+.quiet { border: 1px solid var(--line); background: transparent; color: var(--soft); border-radius: 10px; padding: 10px 14px; font-size: 15px; cursor: pointer; }
+.field { display: grid; gap: 6px; }
+.field label { font-weight: 600; }
+textarea, input[type=text], select { width: 100%; box-sizing: border-box; background: var(--slate); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font: 16px/1.4 var(--display); }
+textarea { min-height: 72px; resize: vertical; }
+.summary { font-family: var(--mono); font-size: 13px; background: var(--slate); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 4px; overflow-x: auto; }
+.summary .k { color: var(--soft); }
+.ok { color: var(--good); }
+.status { font-family: var(--mono); font-size: 12px; color: var(--soft); }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+table { border-collapse: collapse; font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; min-width: 640px; width: 100%; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--soft); font-weight: 500; }
+.windows { display: flex; gap: 14px; justify-content: center; padding-block: 10px; }
+.windows span { width: 46px; height: 46px; border-radius: 6px; background: radial-gradient(circle at 50% 60%, #ffe2a0, #ff9a3c 60%, #7a3a12); box-shadow: 0 0 22px rgba(255,160,70,.6); }
+@media (prefers-reduced-motion: reduce) { .next { animation: none; } .vane .arrow { transition: none; } .vane.pulse .ring { animation: none; } }
+
+.obs summary { color: var(--soft); cursor: pointer; font-size: 15px; } .obs { display: grid; gap: 12px; } .obs[open] { gap: 14px; }
+#play { display: flex; flex-direction: column; height: 100%; overflow: hidden; user-select: none; -webkit-user-select: none; }
+.hud { grid-template-columns: 40px 1fr 40px; min-height: 56px; }
+.goal { display: grid; gap: 2px; }
+.goal .rule { font-size: 13px; font-weight: 600; color: var(--ember); letter-spacing: .01em; }
+.tag { display: grid; justify-items: end; }
+.meter { min-height: 26px; display: flex; gap: 10px; justify-content: center; align-items: center; flex: 0 0 auto; }
+.score { font-weight: 700; font-size: 22px; color: var(--ember); font-variant-numeric: tabular-nums; }
+.boardno { font-weight: 600; font-size: 15px; color: var(--soft); }
+.fs-chip { font-size: 13px; font-weight: 700; color: var(--soft); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-variant-numeric: tabular-nums; }
+.fs-chip.lit { color: #2a1606; background: var(--ember); border-color: var(--ember); box-shadow: 0 0 10px rgba(255,160,70,.5); }
+#cv { display: block; touch-action: none; }
+.scene-wrap { flex: 1 1 auto; min-height: 0; display: flex; justify-content: center; align-items: center; position: relative; }
+.status-line { text-align: center; color: var(--soft); font-weight: 600; font-size: 17px; min-height: 22px; }
+.status-line.good { color: var(--ember); } .status-line.bad { color: #9fd3e6; }
+.status-sub { text-align: center; color: var(--text); font-weight: 600; font-size: 15px; min-height: 20px; }
+.bar { display: grid; gap: 2px; }
+#after { position: absolute; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; z-index: 2; }
+/* the two choices: one style, one size, side by side; neither is the highlighted default */
+.choice { height: 100%; border-radius: 14px; border: 2px solid var(--ember); background: #2a2216; color: var(--text); font: 700 18px/1.1 var(--display); cursor: pointer; padding: 0 8px; }
+.choice:active { background: #3a2a18; }
+.stepper { display: flex; align-items: center; gap: 12px; } .stepper output { font-size: 22px; font-weight: 700; min-width: 2ch; text-align: center; font-variant-numeric: tabular-nums; }
+.stepper .quiet { min-width: 48px; font-size: 20px; padding: 6px 12px; }
+.sess { padding: 8px 0; border-bottom: 1px solid var(--line); } .sess:last-child { border-bottom: 0; }
+.summary { white-space: normal; }
+#obsmenu .quiet { text-align: left; }
+
+/* Q-019 chapter screens: the lane (street list), pause menu and ending, in the game's night palette */
+.w-fine { color: var(--soft); font-size: 13px; }
+.lane-intro { margin: 0; color: var(--text); }
+.lane-count { margin: 0; color: var(--ember); font-weight: 700; }
+.lane-note { margin: 0; color: var(--soft); font-size: 14px; }
+.lane-save { margin: 0; color: var(--soft); font-size: 14px; }
+.lane-save.warn { color: #ffd2cc; background: #3a1712; border: 1px solid #ff6b5b; border-radius: 10px; padding: 8px 10px; }
+.streets { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.street button { width: 100%; display: grid; grid-template-columns: 132px 1fr; grid-template-rows: auto auto auto; column-gap: 12px; row-gap: 2px; align-items: center;
+  text-align: left; background: var(--slate); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; color: var(--text); cursor: pointer; min-height: 72px; }
+.street .houses { grid-row: 1 / span 3; }
+.st-name { font-weight: 700; font-size: 17px; }
+.st-what { color: var(--soft); font-size: 14px; line-height: 1.25; }
+.st-state { font-size: 13px; font-weight: 600; color: var(--soft); }
+.street.done button { border-color: rgba(255,176,82,.55); }
+.street.done .st-state { color: var(--ember); }
+.street.next button { border-color: var(--ember); box-shadow: 0 0 0 1px rgba(255,176,82,.35) inset; }
+.street.next .st-state { color: var(--text); }
+.street.locked button { opacity: .5; cursor: default; }
+.reset { display: grid; gap: 8px; }
+.reset p { margin: 0; }
+#menu .quiet { text-align: left; }
+.ending-lane { display: grid; gap: 8px; }
+.end-row { display: grid; grid-template-columns: 132px 1fr; align-items: center; gap: 12px; color: var(--soft); font-weight: 600; opacity: 0; animation: endin .6s ease forwards; }
+@keyframes endin { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .end-row { animation: none; opacity: 1; } }
+.after .choice { font-size: 16px; }
+@media (max-width: 360px) { .street button { grid-template-columns: 1fr; } .street .houses { grid-row: auto; } }
+
+/* Q-021: the lane scene, street actions, records, review mode and the preview switch */
+.hud { grid-template-columns: 40px 1fr auto; }
+.pv-btn { border: 1px solid var(--line); background: transparent; color: var(--soft); border-radius: 999px; padding: 6px 10px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; min-height: 36px; }
+.pv-btn[aria-pressed="true"] { border-color: var(--ember); color: var(--ember); }
+.scene-box { display: grid; gap: 10px; }
+.lane-scene { display: block; width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); }
+.lane-scene .win { fill: #151821; stroke: #b9def8; stroke-width: .6; transition: fill 1.4s, stroke 1.4s; }
+.lane-scene .warm .win { fill: #ffc46a; stroke: #ffc46a; }
+.lane-scene .glow, .lane-scene .smoke, .lane-scene .water, .lane-scene .logs, .lane-scene .steps, .lane-scene .flag { opacity: 0; transition: opacity 1.4s; }
+.lane-scene .warm .glow, .lane-scene .warm .water, .lane-scene .warm .logs, .lane-scene .warm .steps, .lane-scene .warm .flag { opacity: 1; }
+.lane-scene .smoke circle { fill: #cdd2dc; }
+.lane-scene .warm .smoke { opacity: .55; animation: lsmoke 3.6s ease-in-out infinite; }
+@keyframes lsmoke { 50% { transform: translateY(-2px); opacity: .3; } }
+.lane-scene .snowcap, .lane-scene .ice, .lane-scene .door, .lane-scene .icicles { opacity: 1; transition: opacity 1.4s; }
+.lane-scene .warm .snowcap, .lane-scene .warm .ice, .lane-scene .warm .door, .lane-scene .warm .icicles { opacity: 0; }
+.lane-scene .drift { transition: opacity 1.6s, transform 1.6s; transform-box: fill-box; transform-origin: 50% 100%; }
+.lane-scene .warm .drift { opacity: 0; transform: scaleY(.2); }
+.lane-scene .lamp, .lane-scene .bulb { fill: #3a4152; transition: fill 1.2s; }
+.lane-scene .warm .lamp, .lane-scene .warm .bulb { fill: #ffd27a; }
+.lane-scene .wheel { transform-box: fill-box; transform-origin: center; }
+.lane-scene .warm .wheel { animation: lspin 10s linear infinite; }
+@keyframes lspin { to { transform: rotate(360deg); } }
+.lane-scene .ring { fill: none; stroke: var(--ember); stroke-width: 1.2; stroke-dasharray: 3 3; opacity: 0; }
+.lane-scene .next .ring { opacity: .9; animation: lring 1.8s ease-in-out infinite; }
+@keyframes lring { 50% { opacity: .35; } }
+.lane-scene .pin circle { fill: #2a3142; stroke: #4a5266; stroke-width: 1; transition: fill 1.2s; }
+.lane-scene .pin text { font: 700 8px var(--display); fill: #a9b1c3; }
+.lane-scene .warm .pin circle { fill: var(--ember); stroke: var(--ember); }
+.lane-scene .warm .pin text { fill: #2a1606; }
+.lane-scene.instant, .lane-scene.instant * { transition: none !important; }
+@media (prefers-reduced-motion: reduce) { .lane-scene *, .lane-scene { transition: none !important; animation: none !important; } }
+.reveal { background: var(--slate); border: 1px solid rgba(255,176,82,.55); border-radius: 14px; padding: 12px 14px; display: grid; gap: 8px; }
+.reveal p { margin: 0; color: var(--text); }
+.reveal-stage { font-family: var(--mono); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--ember) !important; }
+.glimpse { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; }
+.glimpse p { color: var(--soft) !important; font-size: 14px; }
+.mini text { font: 700 7px var(--display); fill: #eef1f6; }
+.street { display: grid; gap: 8px; background: var(--slate); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+.street.done { border-color: rgba(255,176,82,.55); }
+.street.next { border-color: var(--ember); box-shadow: 0 0 0 1px rgba(255,176,82,.35) inset; }
+.street.locked { opacity: .55; }
+.st-card { display: grid; grid-template-columns: 132px 1fr; grid-template-rows: auto auto auto; column-gap: 12px; row-gap: 2px; align-items: center; color: var(--text); }
+.st-card .houses { grid-row: 1 / span 3; }
+.street.done .st-state { color: var(--ember); }
+.st-rec { font-size: 13px; color: var(--soft); }
+.st-rec span { color: var(--text); font-weight: 600; }
+.st-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.st-actions .go, .st-actions .quiet { padding: 10px 14px; font-size: 15px; min-height: 44px; }
+.rv-setups { display: contents; }
+.review { border: 1px dashed var(--frost); border-radius: 14px; padding: 12px 14px; display: grid; gap: 10px; }
+.rv-title { color: var(--frost) !important; font-weight: 700; }
+.rv-label { color: var(--soft); font-size: 14px; align-self: center; }
+.review .chip { text-decoration: none; font-size: 14px; padding: 6px 12px; }
+.rv-link, .rv-exit { color: var(--frost); }
+@media (max-width: 360px) { .st-card { grid-template-columns: 1fr; } .st-card .houses { grid-row: auto; } .glimpse { grid-template-columns: 1fr; } }
+/* the chapter-2 street buttons were whole cards; here the card is a block and its actions are ordinary buttons */
+.street .st-actions button { width: auto; display: inline-flex; align-items: center; justify-content: center; grid-template-columns: none; min-height: 44px; border-radius: 10px; text-align: center; box-shadow: none; cursor: pointer; }
+.street .st-actions .go { background: var(--ember); border: 0; color: #2a1606; font-weight: 700; }
+.street .st-actions .quiet { background: transparent; border: 1px solid var(--line); color: var(--soft); }
+.streets > li, .street > * { min-width: 0; }
+.street .st-actions button { white-space: normal; max-width: 100%; }
+.street, .review, .reveal { box-sizing: border-box; }
+
+/* Q-024: the score's own "+N", the lane's before-and-after inside the win, the restoring street marked on the lane, the sound switch */
+.score.glow { animation: sglow 1.1s ease-out; }
+@keyframes sglow { 0% { text-shadow: 0 0 0 rgba(255,176,82,0); } 25% { text-shadow: 0 0 14px rgba(255,190,100,.95); color: #fff1d6; } 100% { text-shadow: 0 0 0 rgba(255,176,82,0); } }
+.boardno { display: inline-block; text-align: right; white-space: nowrap; }
+.boardno.cue { color: #ffe1a0; font-variant-numeric: tabular-nums; animation: sdelta .25s ease-out; }
+.boardno.cue.strong { color: #ffd27a; font-weight: 700; }
+@keyframes sdelta { from { transform: translateY(5px); opacity: 0; } }
+.wincard { position: absolute; z-index: 1; box-sizing: border-box; display: flex; flex-direction: column; gap: 5px; padding: 10px 12px; overflow: hidden;
+  background: rgba(30,34,48,.97); border: 1px solid rgba(255,176,82,.7); border-radius: 12px; cursor: pointer; }
+.wincard p { margin: 0; max-width: none; }
+.wc-stage { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--ember); }
+.wc-title { font-weight: 700; font-size: 20px; line-height: 1.15; color: #ffd27a; }
+.wc-text { font-size: 14px; line-height: 1.3; color: var(--text); }
+.wc-warn { font-size: 13px; color: #ffd2cc; }
+.wincard .lane-scene { flex: 0 1 auto; min-height: 0; max-height: 62%; width: 100%; object-fit: contain; }
+.lane-scene .focus .ring { opacity: .95; stroke-dasharray: none; }
+@media (prefers-reduced-motion: reduce) { .score.glow { animation: none; } .boardno.cue { animation: none; } }
+</style>
+</head><body>
+<section id="lane" class="col pad sheet">
+  <div class="eyebrow">Wintermere · Firestorm · Chapter 1</div>
+  <h1>The Cold Lane</h1>
+  <p class="lane-intro">Seven streets wait in the cold. Full rows and full columns of wood burn, edge to edge: fire warms the home above each burned cell's column, so place your fires under the homes that are still cold.</p>
+  
+  <div id="scene-wrap" class="scene-box">
+    <div id="scene"></div>
+    <div id="reveal" class="reveal" hidden>
+      <p class="reveal-stage" id="reveal-stage">Before</p>
+      <p id="reveal-text"></p>
+      <div id="reveal-next"></div>
+      <div class="choices"><button class="quiet" type="button" id="reveal-skip">Skip</button><button class="quiet" type="button" id="reveal-close">Close</button></div>
+    </div>
+  </div>
+  <p class="lane-count" id="lane-count"></p>
+  <p class="lane-save warn" id="lane-msg" hidden></p>
+  <button class="go" type="button" id="lane-continue">Start</button>
+  <ol class="streets" id="streets"></ol>
+  <p class="lane-save" id="lane-save"></p>
+  <p class="lane-note">A street you leave part-way can be resumed exactly where you left it, in this browser on this device. Finished streets stay warm here.</p>
+  <div class="reset">
+    <button class="quiet" type="button" id="reset-ask">Reset chapter progress</button>
+    <p class="lane-save warn" id="reset-note" hidden></p>
+    <div id="reset-confirm" hidden>
+      <p>Forget which streets are warm, your records and any unfinished streets? This cannot be undone.</p>
+      <div class="choices"><button class="quiet" type="button" id="reset-yes">Yes, start the chapter cold</button><button class="go" type="button" id="reset-no">Keep my progress</button></div>
+    </div>
+  </div>
+  <p class="w-fine">Unlisted preview <span id="w-build"></span>, not a release: anyone with this address can open it. No gameplay results are uploaded; progress stays in this browser on this device; fonts may load from Google.</p>
+</section>
+
+<section id="play" class="col" hidden>
+  <div class="hud pad">
+    <button class="restart" type="button" id="back" aria-label="Pause menu">←</button>
+    <div class="goal" id="goal"><span class="rule" id="goal-rule">Firestorm: 2+ lines and 2+ pinecones in one move</span></div>
+    <div class="tag" id="tag"><button class="pv-btn" type="button" id="pv-btn" aria-pressed="false">Preview: off</button></div>
+  </div>
+  <div class="meter pad" id="meter"></div>
+  <div class="scene-wrap" id="wrap"><canvas id="cv"></canvas>
+    <div class="wincard" id="wincard" hidden></div>
+    <div class="after" id="after" hidden><button class="choice" type="button" id="opt-stop">Back to the lane</button><button class="choice" type="button" id="opt-go">Next</button></div></div>
+  <div class="bar pad">
+    <div class="status-line" id="status"></div>
+    <div class="status-sub" id="status-sub"></div>
+  </div>
+</section>
+
+<section id="menu" class="col pad sheet" hidden>
+  <div class="eyebrow">Paused</div>
+  <h1>Take a breath</h1>
+  <p id="menu-where"></p>
+  <p id="menu-note" class="lane-note"></p>
+  <button class="go" type="button" id="menu-back">Back to the street</button>
+  <button class="quiet" type="button" id="menu-same">Start again: same setup</button>
+  <button class="quiet" type="button" id="menu-fresh">Start again: fresh setup</button>
+  <button class="quiet" type="button" id="menu-sound" aria-pressed="true">Sound: on</button>
+  <button class="quiet" type="button" id="menu-lane">Back to the lane</button>
+</section>
+
+<section id="ending" class="col pad sheet" hidden>
+  <div class="eyebrow">Chapter 1 complete</div>
+  <h1>The lane is warm</h1>
+  <div id="ending-scene" class="scene-box"></div>
+  <p id="ending-stats"></p>
+  <p>Every home on the lane has light in its windows. Replay any street with a fresh setup, or leave the lane as it is.</p>
+  <p class="lane-save" id="ending-save"></p>
+  <button class="go" type="button" id="ending-lane-btn">Back to the lane</button>
+</section>
+
+<script>// Core Loop Lab rules (Oct 22): Fireline, Gust & Glow, Hearthfall. Pure functions, no drawing.
+// Q-021 (Oct 26 2026, rules identity fs-q021-rules-1): Hearthfall gains snow terrain (cell value 3); see the HEARTHFALL comment. Nothing else changed.
+// The page and the Node solvers load this same file, so a level verified by the solver plays the same on the phone.
+// Grid coordinates: x 0..W-1 left to right, y 0..H-1 top to bottom. Patterns are rows, top first.
+(function (root) {
+  const D4 = [[0, -1], [1, 0], [0, 1], [-1, 0]];                       // up, right, down, left
+  const D8 = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
+  const K = (x, y) => x + ',' + y;
+  const inb = (s, x, y) => x >= 0 && y >= 0 && x < s.W && y < s.H;
+  const at = (s, x, y) => s.g[y][x];
+  const set = (s, x, y, c) => { s.g[y][x] = c; };
+
+  // ------------------------------------------------------------------ FIRELINE
+  // Cells: G grass (fuel), P pinecone (fuel; the fire passing it refunds 2 heat and bursts into its 8 neighbours),
+  // S snow over grass (not drawable; melts to G when a burning cell is beside it), R rock, H home (cold), h home (warm),
+  // '.' ground, '#' ash, F the flame's start (already burnt).
+  // A line: from the flame through orthogonally adjacent unburnt fuel, no cell twice; each cell costs 1 heat
+  // (it must be paid before entering), a pinecone gives 2 back as the fire passes.
+  const FL = {};
+  FL.load = (lv) => {
+    const g = lv.pattern.map(r => r.split('')); let flame = null;
+    g.forEach((row, y) => row.forEach((c, x) => { if (c === 'F') { flame = [x, y]; row[x] = '#'; } }));
+    return { W: g[0].length, H: g.length, g, flame, heat: lv.heat, homes: g.flat().filter(c => c === 'H').length, lit: 0 };
+  };
+  FL.clone = (s) => ({ W: s.W, H: s.H, g: s.g.map(r => r.slice()), flame: s.flame.slice(), heat: s.heat, homes: s.homes, lit: s.lit });
+  FL.isFuel = (c) => c === 'G' || c === 'P';
+  // Can the line (already `path`) be extended by (x, y)? Returns the heat left after entering, or -1.
+  FL.heatAlong = (s, path) => { let h = s.heat; for (const [x, y] of path) { if (h < 1) return -1; h -= 1; if (at(s, x, y) === 'P') h += 2; } return h; };
+  FL.canExtend = (s, path, x, y) => {
+    if (!inb(s, x, y) || !FL.isFuel(at(s, x, y))) return false;
+    const [hx, hy] = path.length ? path[path.length - 1] : s.flame;
+    if (Math.abs(hx - x) + Math.abs(hy - y) !== 1) return false;
+    if (path.some(([a, b]) => a === x && b === y)) return false;
+    return FL.heatAlong(s, path) >= 1;
+  };
+  // Run a line. Returns { state, steps } where each step lists what happened as the fire entered one line cell.
+  FL.run = (s0, path) => {
+    const s = FL.clone(s0), steps = [], reserved = new Set(path.map(([x, y]) => K(x, y)));
+    const burnCell = (x, y, ev) => {   // a cell burns: snow beside it melts, a home beside it warms
+      for (const [dx, dy] of D4) { const nx = x + dx, ny = y + dy; if (!inb(s, nx, ny)) continue; const c = at(s, nx, ny);
+        if (c === 'S') { set(s, nx, ny, 'G'); ev.melted.push([nx, ny]); }
+        else if (c === 'H') { set(s, nx, ny, 'h'); s.lit++; ev.lit.push([nx, ny]); } }
+    };
+    for (let i = 0; i < path.length; i++) {
+      const [x, y] = path[i], c = at(s, x, y), ev = { cell: [x, y], kind: c, bursts: [], melted: [], lit: [], heat: 0 };
+      if (s.heat < 1 || !FL.isFuel(c)) throw new Error('invalid line at ' + i);
+      s.heat -= 1; set(s, x, y, '#'); reserved.delete(K(x, y)); burnCell(x, y, ev);
+      if (c === 'P') {
+        s.heat += 2;
+        // the burst: its 8 neighbours burn (fuel), melt (snow) or warm (home); a pinecone caught by it bursts too
+        const q = [[x, y, 1]];
+        while (q.length) { const [bx, by, d] = q.shift();
+          for (const [dx, dy] of D8) { const nx = bx + dx, ny = by + dy; if (!inb(s, nx, ny) || reserved.has(K(nx, ny))) continue; const n = at(s, nx, ny);
+            if (n === 'G' || n === 'P') { set(s, nx, ny, '#'); ev.bursts.push([nx, ny, d]); burnCell(nx, ny, ev); if (n === 'P') q.push([nx, ny, d + 1]); }
+            else if (n === 'S') { set(s, nx, ny, 'G'); ev.melted.push([nx, ny]); }
+            else if (n === 'H') { set(s, nx, ny, 'h'); s.lit++; ev.lit.push([nx, ny]); } } }
+      }
+      ev.heat = s.heat; steps.push(ev);
+    }
+    if (path.length) s.flame = path[path.length - 1].slice();
+    return { state: s, steps };
+  };
+  FL.won = (s) => s.lit >= s.homes;
+  FL.stuck = (s) => !FL.won(s) && (s.heat < 1 || !D4.some(([dx, dy]) => inb(s, s.flame[0] + dx, s.flame[1] + dy) && FL.isFuel(at(s, s.flame[0] + dx, s.flame[1] + dy))));
+  // every legal line from the flame (simple paths within the heat), for the solver
+  FL.lines = (s, maxLen) => {
+    const out = [], path = [];
+    const rec = () => { const [hx, hy] = path.length ? path[path.length - 1] : s.flame;
+      for (const [dx, dy] of D4) { const x = hx + dx, y = hy + dy; if (FL.canExtend(s, path, x, y)) { path.push([x, y]); out.push(path.slice()); if (!maxLen || path.length < maxLen) rec(); path.pop(); } } };
+    rec(); return out;
+  };
+  FL.key = (s) => s.g.map(r => r.join('')).join('/') + '|' + s.flame + '|' + s.heat;
+
+  // ------------------------------------------------------------------ GUST & GLOW
+  // Cells: G grass (burns 1 gust), L log (burns 3), P pinecone (burns 1; bursts into its 8 neighbours the moment it
+  // catches), S snow over grass (melts to G when a burning cell is beside it), R rock, H home, h warm home, '.' ground,
+  // '#' ash, * a fuel cell already burning at the start (the cell under it is given by `under`).
+  const GG = { LIFE: { G: 1, L: 3, P: 1 },   // G and P burn while the fire is on them; L counts gusts
+             DIRS: { up: [0, -1], right: [1, 0], down: [0, 1], left: [-1, 0] } };
+  GG.load = (lv) => {
+    const g = lv.pattern.map(r => r.split('')), burn = g.map(r => r.map(() => 0));
+    const s = { W: g[0].length, H: g.length, g, burn, gusts: lv.gusts, homes: 0, lit: 0, sparked: false };
+    g.forEach((row, y) => row.forEach((c, x) => { if (c === 'H') s.homes++; if (c === '*') { row[x] = lv.under || 'L'; s.sparked = true; burn[y][x] = GG.LIFE[row[x]]; } }));
+    return s;
+  };
+  GG.clone = (s) => ({ W: s.W, H: s.H, g: s.g.map(r => r.slice()), burn: s.burn.map(r => r.slice()), gusts: s.gusts, homes: s.homes, lit: s.lit, sparked: s.sparked });
+  GG.isFuel = (c) => c === 'G' || c === 'L' || c === 'P';
+  GG.burning = (s) => { const o = []; for (let y = 0; y < s.H; y++) for (let x = 0; x < s.W; x++) if (s.burn[y][x] > 0) o.push([x, y]); return o; };
+  // ignite a set of cells (with pinecone bursts chaining), then melt and warm; returns the event
+  function igniteAll(s, list, ev) {
+    const q = [];
+    for (const [x, y, fx, fy] of list) { if (!GG.isFuel(at(s, x, y)) || s.burn[y][x] > 0) continue; s.burn[y][x] = GG.LIFE[at(s, x, y)]; ev.ignited.push([x, y, fx, fy]); if (at(s, x, y) === 'P') q.push([x, y, 1]); }
+    while (q.length) { const [bx, by, d] = q.shift(); ev.bursts.push([bx, by, d]);
+      for (const [dx, dy] of D8) { const nx = bx + dx, ny = by + dy; if (!inb(s, nx, ny)) continue; const n = at(s, nx, ny);
+        if (GG.isFuel(n) && s.burn[ny][nx] === 0) { s.burn[ny][nx] = GG.LIFE[n]; ev.burstLit.push([nx, ny, bx, by, d]); if (n === 'P') q.push([nx, ny, d + 1]); }
+        else if (n === 'S') { set(s, nx, ny, 'G'); ev.melted.push([nx, ny]); }
+        else if (n === 'H') { set(s, nx, ny, 'h'); s.lit++; ev.lit.push([nx, ny]); } } }
+    // snow beside fire melts; a home beside fire warms
+    for (const [x, y] of GG.burning(s)) for (const [dx, dy] of D4) { const nx = x + dx, ny = y + dy; if (!inb(s, nx, ny)) continue; const c = at(s, nx, ny);
+      if (c === 'S') { set(s, nx, ny, 'G'); ev.melted.push([nx, ny]); } else if (c === 'H') { set(s, nx, ny, 'h'); s.lit++; ev.lit.push([nx, ny]); } }
+  }
+  GG.newEvent = () => ({ ignited: [], bursts: [], burstLit: [], melted: [], lit: [], died: [], sources: [], dir: null });
+  GG.canSpark = (s, x, y) => inb(s, x, y) && at(s, x, y) === 'L';   // a spark is laid on a log (firewood); grass catches from fire
+  GG.spark = (s0, x, y) => { const s = GG.clone(s0), ev = GG.newEvent(); if (!GG.canSpark(s, x, y)) return null; s.sparked = true; igniteAll(s, [[x, y, x, y]], ev); return { state: s, ev }; };
+  // one gust: the whole fire leaps one step downwind. Every burning cell throws fire to the next cell that way if it is
+  // unburnt fuel; grass and pinecones the fire leaves become ash (so the fire moves as one shape and cannot go back
+  // over its own ash); a lit log stays lit wherever the fire goes and burns down by one each gust (3 gusts in all), so
+  // it keeps throwing fire. Then pinecone bursts, melting and warming as in igniteAll.
+  GG.gust = (s0, dirName) => {
+    const s = GG.clone(s0), ev = GG.newEvent(), [dx, dy] = GG.DIRS[dirName]; ev.dir = dirName;
+    const B = GG.burning(s); ev.sources = B; ev.blocked = [];
+    const N = new Map();
+    for (const [x, y] of B) { const tx = x + dx, ty = y + dy;
+      if (inb(s, tx, ty) && GG.isFuel(at(s, tx, ty))) N.set(tx + ',' + ty, [tx, ty, x, y]); else ev.blocked.push([tx, ty, x, y]); }
+    for (const [x, y] of B) { const c = at(s, x, y);
+      if (c === 'L') { s.burn[y][x]--; if (s.burn[y][x] <= 0) { s.burn[y][x] = 0; set(s, x, y, '#'); ev.died.push([x, y]); N.delete(x + ',' + y); } }
+      else if (!N.has(x + ',' + y)) { s.burn[y][x] = 0; set(s, x, y, '#'); ev.died.push([x, y]); } }
+    ev.moved = [...N.values()].filter(([tx, ty]) => s.burn[ty][tx] > 0);   // fire that stays on a cell it was already on
+    igniteAll(s, [...N.values()].filter(([tx, ty]) => s.burn[ty][tx] === 0), ev);
+    s.gusts--;
+    return { state: s, ev };
+  };
+  GG.won = (s) => s.lit >= s.homes;
+  GG.lost = (s) => !GG.won(s) && s.sparked && (s.gusts <= 0 || GG.burning(s).length === 0);
+  GG.key = (s) => s.g.map(r => r.join('')).join('/') + '|' + s.burn.map(r => r.join('')).join('') + '|' + s.gusts + s.sparked;
+
+  // ------------------------------------------------------------------ HEARTHFALL
+  // 8x8 woodshed. Cells: 0 empty, 1 log, 2 pinecone (in chains-off mode a pinecone is an ordinary log and is drawn
+  // as one). Placing a piece fills cells; every full row and column catches; with chains on, every pinecone that burns
+  // bursts into its 8 neighbours, and pinecones caught by a burst burst too. Everything that burned clears.
+  // Q-021 snow (3): non-fuel terrain. Wood never goes on it (fits needs an empty cell); it never counts as filled wood, so a
+  // line holding snow cannot complete; fire does not pass through it and it never bursts. It thaws to empty when a fuel cell
+  // orthogonally next to it burns in the same placement, or when a pinecone that burns is one of its eight neighbours. Thawing
+  // clears the cell only: no score, no burned count. Order: lines, chain waves, thaw set, clear burned fuel, clear thawed snow.
+  const HF = { N: 8, PINE: 0.15, SNOW: 3, RULES: 'fs-q021-rules-1' };
+  HF.SHAPES = [
+    [[0, 0]], [[0, 0], [1, 0]], [[0, 0], [0, 1]], [[0, 0], [1, 0], [2, 0]], [[0, 0], [0, 1], [0, 2]],
+    [[0, 0], [1, 0], [2, 0], [3, 0]], [[0, 0], [0, 1], [0, 2], [0, 3]], [[0, 0], [1, 0], [0, 1], [1, 1]],
+    [[0, 0], [0, 1], [1, 1]], [[1, 0], [0, 1], [1, 1]], [[0, 0], [1, 0], [0, 1]], [[0, 0], [1, 0], [1, 1]],
+    [[0, 0], [0, 1], [0, 2], [1, 2]], [[1, 0], [1, 1], [1, 2], [0, 2]], [[0, 0], [1, 0], [2, 0], [1, 1]],
+    [[0, 0], [1, 0], [1, 1], [2, 1]], [[1, 0], [2, 0], [0, 1], [1, 1]], [[1, 0], [0, 1], [1, 1], [2, 1], [1, 2]],
+    [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1], [0, 2], [1, 2], [2, 2]],
+  ];
+  HF.rng = (seed) => { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
+  HF.newGame = (seed) => ({ b: Array.from({ length: HF.N }, () => new Array(HF.N).fill(0)), rnd: HF.rng(seed), seed, score: 0, burned: 0, tray: [], placed: 0, over: false });
+  HF.fits = (g, piece, x, y) => piece.cells.every(([dx, dy]) => { const cx = x + dx, cy = y + dy; return cx >= 0 && cy >= 0 && cx < HF.N && cy < HF.N && g.b[cy][cx] === 0; });
+  HF.anyFit = (g, piece) => { for (let y = 0; y < HF.N; y++) for (let x = 0; x < HF.N; x++) if (HF.fits(g, piece, x, y)) return true; return false; };
+  // a new tray of three, the same draws whatever the mode; at least one piece fits and at least one cell is a pinecone
+  HF.deal = (g) => {
+    let tray;
+    for (let tries = 0; tries < 30; tries++) {
+      tray = [0, 1, 2].map(() => { const sh = HF.SHAPES[Math.floor(g.rnd() * HF.SHAPES.length)]; return { cells: sh, pine: sh.map(() => g.rnd() < HF.PINE) }; });
+      if (tray.some(p => HF.anyFit(g, p))) break;
+    }
+    if (!tray.some(p => p.pine.some(Boolean))) { const p = tray[Math.floor(g.rnd() * 3)]; p.pine[Math.floor(g.rnd() * p.cells.length)] = true; }
+    g.tray = tray;
+  };
+  // place tray piece i at (x, y); returns the event { placed, rows, cols, waves, cleared, gain, depth, thawed } or null
+  HF.place = (g, i, x, y, chains) => {
+    const piece = g.tray[i]; if (!piece || !HF.fits(g, piece, x, y)) return null;
+    const placed = piece.cells.map(([dx, dy], k) => { g.b[y + dy][x + dx] = piece.pine[k] ? 2 : 1; return [x + dx, y + dy]; });
+    g.tray[i] = null; g.placed++;
+    const rows = [], cols = [];
+    const fuel = (v) => v === 1 || v === 2;   // snow (3) is not wood
+    for (let r = 0; r < HF.N; r++) if (g.b[r].every(fuel)) rows.push(r);
+    for (let c = 0; c < HF.N; c++) if (g.b.every(row => fuel(row[c]))) cols.push(c);
+    const depth = new Map(), wave0 = [];
+    rows.forEach(r => { for (let c = 0; c < HF.N; c++) if (!depth.has(K(c, r))) { depth.set(K(c, r), 1); wave0.push([c, r]); } });
+    cols.forEach(c => { for (let r = 0; r < HF.N; r++) if (!depth.has(K(c, r))) { depth.set(K(c, r), 1); wave0.push([c, r]); } });
+    const waves = [wave0];
+    if (chains) {
+      let front = wave0.filter(([c, r]) => g.b[r][c] === 2), d = 1;
+      while (front.length) { const next = [];
+        for (const [c, r] of front) for (const [dx, dy] of D8) { const nc = c + dx, nr = r + dy;
+          if (nc < 0 || nr < 0 || nc >= HF.N || nr >= HF.N || !fuel(g.b[nr][nc]) || depth.has(K(nc, nr))) continue;
+          depth.set(K(nc, nr), d + 1); next.push([nc, nr, c, r]); }
+        if (!next.length) break; waves.push(next); d++; front = next.filter(([c, r]) => g.b[r][c] === 2); }
+    }
+    // thaw: snow beside a burning fuel cell, or within reach of a bursting pinecone (chains on)
+    const thawSet = new Map();
+    depth.forEach((d, k) => { const [c, r] = k.split(',').map(Number); const reach = (chains && g.b[r][c] === 2) ? D8 : D4;
+      for (const [dx, dy] of reach) { const nc = c + dx, nr = r + dy; if (nc >= 0 && nr >= 0 && nc < HF.N && nr < HF.N && g.b[nr][nc] === HF.SNOW) thawSet.set(K(nc, nr), [nc, nr]); } });
+    let gain = placed.length, cleared = 0;
+    depth.forEach((d, k) => { const [c, r] = k.split(',').map(Number); g.b[r][c] = 0; gain += d; cleared++; });
+    const thawed = [...thawSet.values()]; thawed.forEach(([c, r]) => { g.b[r][c] = 0; });
+    if (rows.length + cols.length > 1) gain += 10 * (rows.length + cols.length - 1);   // a double line is worth more
+    g.score += gain; g.burned += cleared;
+    if (g.tray.every(p => !p)) HF.deal(g);
+    g.over = !g.tray.some(p => p && HF.anyFit(g, p));
+    return { placed, rows, cols, waves, cleared, gain, depth: waves.length, thawed };
+  };
+
+  const api = { FL, GG, HF, D4, D8 };
+  if (typeof module !== 'undefined') module.exports = api; else root.LOOPS = api;
+})(this);
+</script>
+<script>// Firestorm A/C layer (Q-006, approved Oct 22 2026). Pure functions over the lab's unchanged Hearthfall rules (rules.js, LOOPS.HF).
+// Nothing here writes to a game's board, tray, random stream or score: condition C reads the event HF.place already returned
+// and adds recognition and a bonus on top. Condition A ignores this layer except for silent logging.
+(function (root) {
+  const HF = (root.LOOPS || require('./rules.js')).HF;
+  const N = HF.N;
+  const FS = { BONUS_PER: 5, LINE_CAP: 3, MIN_LINES: 2, MIN_PINES: 2 };
+
+  // the board as it stood after the piece landed and before anything burned
+  FS.landed = (before, piece, x, y) => { const b = before.map(r => r.slice()); piece.cells.forEach(([dx, dy], k) => { b[y + dy][x + dx] = piece.pine[k] ? 2 : 1; }); return b; };
+
+  // classify one placement. e = the event from HF.place; before = the board copied just before the call.
+  // pinecones burned, in ignition order: wave 0 (on a completed line) first, then each later wave; `from` is the pinecone whose burst caught it.
+  FS.classify = (e, before, piece, x, y) => {
+    const b = FS.landed(before, piece, x, y), pines = [];
+    e.waves.forEach((w, wi) => w.forEach(([c, r, fc, fr]) => { if (b[r][c] === 2) pines.push({ c, r, wave: wi, from: wi ? [fc, fr] : null }); }));
+    const lines = e.rows.length + e.cols.length, n = pines.length;
+    const firestorm = lines >= FS.MIN_LINES && n >= FS.MIN_PINES;
+    const bonus = firestorm ? FS.BONUS_PER * Math.min(lines, FS.LINE_CAP) * n : 0;
+    // near-complete lines (6 or 7 of 8 filled, not completed) that lost cells to a burst: the "A3" surprise, logged in both conditions
+    let wrecked = 0;
+    if (e.waves.length > 1) {
+      const burstCells = new Set(); e.waves.slice(1).forEach(w => w.forEach(([c, r]) => burstCells.add(c + ',' + r)));
+      for (let r = 0; r < N; r++) { if (e.rows.includes(r)) continue; const f = b[r].filter(v => v).length; if (f >= 6 && b[r].some((v, c) => v && burstCells.has(c + ',' + r))) wrecked++; }
+      for (let c = 0; c < N; c++) { if (e.cols.includes(c)) continue; let f = 0, hit = false; for (let r = 0; r < N; r++) { if (b[r][c]) { f++; if (burstCells.has(c + ',' + r)) hit = true; } } if (f >= 6 && hit) wrecked++; }
+    }
+    return { lines, pines: n, pineList: pines, firestorm, bonus, depth: e.waves.length, cleared: e.cleared, wrecked };
+  };
+
+  // a throwaway copy of a game for looking ahead: same board and tray, a dead random stream, so the real game is never touched
+  FS.ghost = (g) => ({ b: g.b.map(r => r.slice()), tray: g.tray.map(p => p ? { cells: p.cells, pine: p.pine.slice() } : null), rnd: () => 0.5, seed: g.seed, score: 0, burned: 0, placed: 0, over: false });
+  // what a placement would do, without doing it
+  FS.preview = (g, i, x, y) => { const h = FS.ghost(g), piece = h.tray[i]; if (!piece || !HF.fits(h, piece, x, y)) return null; const before = h.b.map(r => r.slice()); const e = HF.place(h, i, x, y, true); return { e, c: FS.classify(e, before, piece, x, y) }; };
+  // one-move opportunities: every placement of every tray piece that would be a Firestorm right now
+  FS.opportunities = (g) => { const out = []; g.tray.forEach((p, i) => { if (!p) return; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { if (!HF.fits(g, p, x, y)) continue; const r = FS.preview(g, i, x, y); if (r && r.c.firestorm) out.push({ i, x, y, bonus: r.c.bonus, lines: r.c.lines, pines: r.c.pines }); } }); return out; };
+
+  // replay a seed and a list of moves [[i, x, y], ...] with the lab's own functions; returns the game (the exact state a player would see)
+  FS.replay = (seed, moves) => { const g = HF.newGame(seed); HF.deal(g); for (const [i, x, y] of moves) { if (!HF.place(g, i, x, y, true)) throw new Error('illegal move in replay ' + JSON.stringify([i, x, y])); } return g; };
+  FS.boardKey = (g) => g.b.map(r => r.join('')).join('/') + '|' + g.tray.map(p => p ? p.cells.map(c => c.join('')).join('.') + ':' + p.pine.map(v => v ? 1 : 0).join('') : '-').join(' ');
+
+  if (typeof module !== 'undefined') module.exports = FS; else root.FS = FS;
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+
+
+// Firestorm two-street prototype, Q-012R test-harness repair (approved Oct 23 2026) of the Q-011 page, which stays unchanged for rollback.
+// Q-012R changes, harness only (setup screen, saving, export), and only these: R1 "Download all" works outside the Claude app as an
+// ordinary browser download with a unique file name, and the setup screen warns DO NOT TEST when this browser cannot save (checked at
+// load and on every later save; an export always includes the session in memory); R2 a follow-up visit starts with an empty code and
+// slot, Start needs a valid code and slot 1-16, a slot or code already used by a first visit is refused, a follow-up must use its
+// first visit's slot when that visit is in this browser, and Visit returns to "First visit" after every session. Rules, play, drawing
+// and the record format are Q-011's. Own version and storage keys, so a Q-011 copy in the same browser is never mixed in.
+// Q-011: Firestorm two-street prototype, Q-011 polish pass (approved Oct 22 2026) of the Q-010 page.
+// Q-011 changes, and only these: (1) the goal "Warm all 3 homes" beside three larger, visibly cold homes, in place of
+// Q-010's goal line above the board (removed: it read as keeping homes warm, and homes never cool here); (2) the pinecone drawn as an original vector cone instead of the image used up
+// to Q-010; (3) after a reload, the Firestorm count on a re-shown win/fail choice counts only the current attempt (plus the
+// count carried into that board), not discarded attempts; (4) the second board's woodpile W2 is seed 1008 after 21 placements.
+// Q-010: Firestorm two-street prototype (Q-009 Revision 2, approved Oct 22 2026). Derived from the Q-007 A/C lab, condition C only.
+// Rules: rules.js (LOOPS.HF, byte-identical to the Core Loop Lab's). Firestorm layer: fs.js (FS, byte-identical to Q-007's).
+// The woodshed, its drawing, burn animation, Firestorm recognition, numbering, banner and bonus are Q-007's code unchanged.
+// New here, and only here: a per-board target of three homes (40 cells each, counted from the board's start), the cottages
+// that show it, a victory moment, the Continue/Stop choice, the second board (the same playable board in both arms; P0 frames
+// it as Round 2 on the same street, P1 as a newly unlocked Street 2), retry with the score restored, a finite finish,
+// resume after a reload, an observer sheet, and the session record.
+// Q-019 (Oct 25 2026): Chapter 1 "The Cold Lane", a local, replayable five-street chapter (build fs-q019-chapter-2), derived from
+// the reviewed fs-q018-web-1 game script. Unchanged: the rules (rules.js), the Firestorm layer (fs.js), the woodshed's placement,
+// burning, scoring, Firestorm recognition, drawing, sounds and the Q-018 warmth trail. Changed: each street has its own starting
+// shed (logs and pinecones placed in advance), seed and number of homes (40 burned cells each); the two-board research session,
+// its storage, setup/observer/notes screens and exports are replaced by the chapter (chapter_flow.js); progress saving keeps only
+// completed streets, in this browser, under the chapter's own key. fs-q019-chapter-2 corrects fs-q019-chapter-1: each attempt has its
+// own epoch, so work an earlier attempt left running (its burn, victory moment, delayed pops) can never act on a later one, and a win is
+// recorded at the winning placement from that attempt's own figures; the chapter's save messages and best-run records are corrected.
+// Q-021 (Oct 26 2026): "The Cold Lane, warmed" (build fs-q021-lane-2), derived from fs-q019-chapter-2. Rules: rules_lane.js (identity
+// fs-q021-rules-1: the reviewed rules plus snow, a non-fuel terrain that thaws beside fire). Changed here: warmth is spatial (each home has
+// a marked band of shed columns and its own target; a burned cell warms the home above its column), snow is drawn and melts, an optional
+// burn-outcome preview shows warmth destinations and thawing, and the random draws are counted so an interrupted run can be restored
+// exactly. The chapter flow (lane_flow.js) replaces chapter_flow.js: seven streets with checked setups, fresh or same retries, exact
+// resume, separate records, the lane scene, and a review mode with its own storage.
+const ASSETS = {};
+const DATA = {"levels":[{"id":"c1","name":"First Light","homes":2,"bands":[[0,3],[4,7]],"targets":[36,36],"slice":"gentle","what":"Fill the notch: one piece lights two rows.","hint":"A full row burns. Fire under a home warms that home.","idea":"two-row","variants":[{"tag":"A","seed":7109,"layout":["........","........","........","........","........","........","LLLL.LLL","LPL..LLL"]},{"tag":"B","seed":7212,"layout":["........","........","........","........","........","........","LLL.LLLL","LLL..LPL"]},{"tag":"C","seed":7438,"layout":["........","........","........","........","........","........","L..LLLLL","L..LLLPL"]}]},{"id":"c2","name":"Pine Ridge","homes":3,"bands":[[0,2],[3,4],[5,7]],"targets":[32,22,32],"what":"Load the ridge before you light it.","hint":"Pinecones burn whatever touches them. Fill around the ridge before you finish its row.","idea":"ridge","variants":[{"tag":"A","seed":7024,"layout":["........","........","..P.....","LLLP.LLL","....P...",".....P..","........","........"]},{"tag":"B","seed":7301,"layout":["........","........",".....P..","LLL.PLLL","...P....","..P.....","........","........"]},{"tag":"C","seed":7502,"layout":["........","........","........",".P......","LPL.LLLL","...P....","....P...","........"]}]},{"id":"c3","name":"The Crossing","homes":3,"bands":[[0,2],[3,4],[5,7]],"targets":[36,24,36],"what":"Finish a row and a column together.","hint":"A row and a column are almost full where they cross. Finish both with one piece for a Firestorm.","idea":"crossing","variants":[{"tag":"A","seed":7105,"layout":[".....L..",".....P..","........","LLLPL..L",".....L..",".....L..",".....P..",".....L.."]},{"tag":"B","seed":7704,"layout":["..L.....","..P.....","........","L..LPLLL","..L.....","..L.....","..P.....","..L....."]},{"tag":"C","seed":7908,"layout":["....L...","....P...","....L...","....L...","........","LLLP..LL","....P...","....L..."]}]},{"id":"c4","name":"Full Shed","homes":3,"bands":[[0,2],[3,4],[5,7]],"targets":[40,27,40],"slice":"asym","what":"The shed is crowded on the left; the far home has nothing under it.","hint":"Columns under a home warm only that home. Make room on the left, then build under the far home.","idea":"far-home","variants":[{"tag":"A","seed":7017,"layout":["LL.LL...","L.LLL...","L.LLP...","...LL...","LLLL....","LLLLL...","LL.PL...","LL.LL..."]},{"tag":"B","seed":8067,"layout":["LLLLL...","LL.LL...","L..L....","L.LPL...","L.LL....",".LLLL...","LLLPL...",".LLLL..."]},{"tag":"C","seed":8222,"layout":[".LLLL...",".LLLL...","L.L.L...","L.LPL...","L.LLL...","L.L.L...",".LLLP...","LLL.L..."]}]},{"id":"c5","name":"Long Street","homes":4,"bands":[[0,1],[2,3],[4,5],[6,7]],"targets":[24,24,24,24],"what":"Four homes and an open shed: aim your fires.","hint":"An open shed and four homes. Rows warm everyone a little; columns warm one home a lot.","idea":"open","variants":[{"tag":"A","seed":1008,"layout":null},{"tag":"B","seed":1104,"layout":null},{"tag":"C","seed":1202,"layout":null}]},{"id":"c6","name":"Snowbound","homes":3,"bands":[[0,2],[3,4],[5,7]],"targets":[36,24,36],"slice":"thaw","what":"Snow in the shed: fire beside it melts it.","hint":"Snow holds no wood and no line burns through it. Burn beside the snow to melt it, then build there.","idea":"thaw","variants":[{"tag":"A","seed":7842,"layout":[".....LLL",".....LLL","LLLLLLL.",".....SSS",".....SSS",".....LLL",".....LLL",".....LLL"]},{"tag":"B","seed":8511,"layout":["LLL.....","LLL.....",".LLLLLLL","SSS.....","SSS.....","LLL.....","LLL.....","LLL....."]},{"tag":"C","seed":8718,"layout":[".....LLL",".....LLL",".....LLL",".....SSS",".....SSS","LLLLLLL.",".....LLL",".....LLL"]}]},{"id":"c7","name":"The Frozen Yard","homes":4,"bands":[[0,1],[2,3],[4,5],[6,7]],"targets":[30,30,30,30],"slice":"finale","landmark":true,"what":"The mill yard is frozen: thaw it, then warm the mill.","hint":"The far band is under snow. A pinecone beside the snow bursts it open; so does any fire next to it.","idea":"finale","variants":[{"tag":"A","seed":8003,"layout":["......LL","......LL","......SS",".....PSS","......SS","LL.L..LL","L.LL..LP","LLL...LL"]},{"tag":"B","seed":8904,"layout":["LL......","LL......","SS......","SSP.....","SS......","LL..L.LL","PL..LL.L","LL...LLL"]},{"tag":"C","seed":9201,"layout":["......LL","......SS","......SS",".....PSS","......LL","LL.LL.LL","L.LL..LL","LLL.L.PL"]}]}]};
+// Q-023 (Oct 26 2026, build fs-q023-fair-1): focused gameplay fairness. Only authored setups change (Pine Ridge A's seed; Full Shed A, B and C's
+// seeds and left-hand sheds), so that a beginner's first placements are not trapped by the piece order; rules, scoring, warmth, snow,
+// pinecone chains, retries, records and resume are unchanged. This build keeps its own storage keys.
+// Q-024 (Oct 26 2026, builds fs-q024-polish-1 and -2): presentation and release-quality polish of fs-q023-fair-1. Rules, street data, scoring,
+// Firestorm bonus, warmth, snow, chains, retries, records and resume are unchanged; the changes are how a placement's real result is shown
+// (M), each home's and the lane's restoration (H), goal cues (G), saving/sound/label wording and Q-024 storage (S), and packaging (K): a
+// player build without review mode or test hooks, and a review build from the same source. Cosmetic timing never decides anything:
+// every result is settled at the placement itself, before any animation, exactly as before.
+// polish-2 (Oct 26 2026): reduced motion also stops the board shake and the remaining decorative motion, live; the review-only scene-off
+// victory is repaired. Nothing else changes. Own storage keys (fsq024_polish2_*): polish-1 saves in the same browser are left as they are.
+const VERSION = 'fs-q024-polish-2';
+const { HF } = LOOPS;
+// Q-021 W: spatial warmth. Each home has a band of shed columns and its own target. Every burned fuel cell (each distinct cell once) warms
+// the home whose band holds its column, so a row spreads warmth across the homes and a column gives it all to one. 'pooled' is the
+// internal comparison only: every burned cell joins one pool and the homes fill in order, as fs-q019-chapter-2 did, up to the sum of the targets.
+const CELLV = { '.': 0, 'L': 1, 'P': 2, 'S': 3 };
+function newGoal(L, mode) { return { mode: mode === 'pooled' ? 'pooled' : 'spatial', warm: L.targets.map(() => 0), targets: L.targets.slice(), bands: L.bands, pool: 0, total: L.targets.reduce((a, b) => a + b, 0) }; }
+function bandOf(G, c) { for (let k = 0; k < G.bands.length; k++) if (c >= G.bands[k][0] && c <= G.bands[k][1]) return k; return -1; }
+function creditGoal(G, e) { const per = G.warm.map(() => 0); e.waves.forEach(w => w.forEach(([c]) => { const k = bandOf(G, c); if (k >= 0) per[k]++; })); per.forEach((n, k) => { G.warm[k] += n; }); G.pool += e.cleared; return per; }
+function goalMet(G) { return G.mode === 'pooled' ? G.pool >= G.total : G.warm.every((w, k) => w >= G.targets[k]); }
+function homesWarm(G) { if (G.mode !== 'pooled') return G.warm.filter((w, k) => w >= G.targets[k]).length; let n = 0, acc = 0; for (const t of G.targets) { acc += t; if (G.pool >= acc) n++; } return n; }
+// Q-021 P: what a placement would do, from the same rules on a throwaway copy (FS.preview): the cells that burn, the snow that thaws,
+// and how much of the burn each home still wants. It shows the outcome of the piece being dragged only: no advice, no future pieces.
+function previewOf(G, r, key) { const cells = r ? r.e.waves.flat().map(([c, rr2]) => [c, rr2]) : [], thawed = r ? r.e.thawed.slice() : [], per = G.warm.map(() => 0);
+  cells.forEach(([c]) => { const k = bandOf(G, c); if (k >= 0) per[k]++; });
+  const gain = per.map((n, k) => G.mode === 'pooled' ? 0 : Math.min(n, Math.max(0, G.targets[k] - G.warm[k])));
+  return { key, cells, thawed, per, gain, pool: G.mode === 'pooled' ? Math.min(cells.length, Math.max(0, G.total - G.pool)) : 0 }; }
+// Q-021 R: a street's authored setup and its seed's first tray, with the unchanged rules; the random draws are counted, so a resumed run can
+// prove it reached the same point in the random stream as the run that was interrupted
+function newStreetGame(V) { const g = HF.newGame(V.seed), rnd = g.rnd; g.draws = 0; g.rnd = () => { g.draws++; return rnd(); };
+  if (V.layout) V.layout.forEach((row, y) => [...row].forEach((ch, x) => { g.b[y][x] = CELLV[ch] || 0; })); HF.deal(g); return g; }
+const FAST = () =>  false;   // Q-024 K: the developer checks' fast mode exists in the review build only
+const now = () => performance.now(), sleep = (ms) => new Promise(r => setTimeout(r, ms * (FAST() ? 0 : 1)));
+const $ = (id) => document.getElementById(id);
+
+// ---------------------------------------------------------------- sound: Q-007's set, plus the Core Loop Lab's existing warm chord for the win
+let AC = null, MASTER = null;
+function soundOn() { try { return PREFS.sound !== false; } catch (e) { return true; } }   // Q-024 S: the sound switch (pause menu)
+function audio() { if (!soundOn()) return null; if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); MASTER = AC.createDynamicsCompressor(); MASTER.connect(AC.destination); } catch (e) { AC = null; } } if (AC && AC.state === 'suspended') AC.resume(); return AC; }
+function noise(dur, f0, f1, vol, type, q) {
+  const ac = audio(); if (!ac) return;
+  const n = Math.floor(ac.sampleRate * dur), buf = ac.createBuffer(1, n, ac.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (type === 'crackle' ? (Math.random() < 0.07 ? 1 : 0.16) : 1);
+  const src = ac.createBufferSource(); src.buffer = buf;
+  const f = ac.createBiquadFilter(); f.type = type === 'low' ? 'lowpass' : type === 'high' ? 'highpass' : 'bandpass'; f.Q.value = q || 0.9; f.frequency.setValueAtTime(f0, ac.currentTime); f.frequency.exponentialRampToValueAtTime(f1, ac.currentTime + dur);
+  const g = ac.createGain(); g.gain.setValueAtTime(0.0001, ac.currentTime); g.gain.exponentialRampToValueAtTime(vol, ac.currentTime + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
+  src.connect(f); f.connect(g); g.connect(MASTER); src.start();
+}
+function tone(freq, dur, vol, delay, type, to) {
+  const ac = audio(); if (!ac) return; const t = ac.currentTime + (delay || 0);
+  const o = ac.createOscillator(), g = ac.createGain(); o.type = type || 'sine'; o.frequency.setValueAtTime(freq, t); if (to) o.frequency.exponentialRampToValueAtTime(to, t + dur);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(MASTER); o.start(t); o.stop(t + dur + 0.05);
+}
+const SND = {
+  tick: () => tone(1500, 0.04, 0.025),
+  crackle: (n) => noise(Math.min(1.2, 0.25 + n * 0.04), 1800, 700, Math.min(0.28, 0.08 + n * 0.01), 'crackle'),
+  pop: (d) => { noise(0.16, 900, 300, 0.2, 'low'); tone(130 - Math.min(d, 4) * 12, 0.22, 0.16, 0, 'sine', 60); },
+  clack: () => { noise(0.07, 1200, 500, 0.16, 'low'); tone(240, 0.06, 0.06, 0, 'triangle', 160); },
+  fail: () => { tone(330, 0.3, 0.05, 0, 'triangle', 247); tone(247, 0.5, 0.05, 0.25, 'triangle', 196); },
+  window: () => tone(880, 0.25, 0.05, 0, 'triangle', 1320),
+  firestorm: () => { noise(0.9, 140, 700, 0.24, 'low'); tone(196, 1.2, 0.07); tone(294, 1.2, 0.06, 0.1); tone(392, 1.4, 0.06, 0.2); tone(587, 1.6, 0.05, 0.32); },
+  thaw: () => { noise(0.45, 3200, 1400, 0.05, 'high'); tone(1180, 0.16, 0.018, 0.04, 'sine', 1560); },   // Q-021 T: snow melting
+  warm: () => { tone(392, 0.9, 0.06); tone(523, 0.9, 0.05, 0.12); tone(659, 1.2, 0.05, 0.24); tone(784, 1.4, 0.035, 0.38); },   // the Core Loop Lab's own
+};
+
+// ---------------------------------------------------------------- canvas, layout (Q-007's)
+const cv = $('cv'), ctx = cv.getContext('2d');
+let dpr = 1, CW = 0, CH = 0, cell = 40, ox = 0, oy = 0;
+let game = null;
+function fit() {
+  requestAnimationFrame(() => winCardPlace());   // Q-024 H
+  if ($('play').hidden || !game) return;
+  const wrap = $('wrap'), w = Math.min(wrap.clientWidth || innerWidth, 520), h = wrap.clientHeight || 400;
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const L = game.layout(w, h); CW = L.w; CH = L.h; cell = L.cell; ox = L.ox; oy = L.oy;
+  cv.style.width = CW + 'px'; cv.style.height = CH + 'px'; cv.width = Math.round(CW * dpr); cv.height = Math.round(CH * dpr);
+  placeAfter();
+}
+addEventListener('resize', () => requestAnimationFrame(fit));
+if (window.visualViewport) visualViewport.addEventListener('resize', () => requestAnimationFrame(fit));
+if (window.ResizeObserver) new ResizeObserver(() => fit()).observe($('wrap'));
+function toLocal(e) { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+
+// ---------------------------------------------------------------- drawing helpers (Q-007's)
+let particles = [], shake = { until: 0, amp: 0 }, streaks = [];
+function burst(x, y, n, o) { if (reducedMotion()) return;   // Q-024: with reduced motion no flying sparks, pops or drifting smoke (homes keep a still plume)
+  for (let i = 0; i < n; i++) { const a = (o.dir != null ? o.dir : Math.random() * 6.283) + (Math.random() - 0.5) * (o.spread || 6.3), sp = o.speed * (0.4 + Math.random() * 0.8);
+  particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, g: o.g || 0, r: o.r * (0.6 + Math.random() * 0.7), c: o.c, a: o.a || 1, t0: now() + (o.delay || 0), life: o.life * (0.7 + Math.random() * 0.5) }); } }
+function drawParticles(t) {
+  if (particles.length > 600) particles.splice(0, particles.length - 600);
+  particles = particles.filter(p => t - p.t0 < p.life);
+  for (const p of particles) { if (t < p.t0) continue; const k = (t - p.t0) / p.life, dt = (t - p.t0) / 1000;
+    const x = p.x + p.vx * dt, y = p.y + p.vy * dt + 0.5 * p.g * dt * dt;
+    ctx.fillStyle = p.c.replace('A', String((1 - k) * p.a)); ctx.beginPath(); ctx.arc(x, y, p.r * (1 - 0.4 * k), 0, 6.283); ctx.fill(); }
+}
+function flame(mx, my, size, k, seed) {
+  const tt = now() / 1000;
+  for (let i = 0; i < 3; i++) {
+    const fl = reducedMotion() ? 0.9 : 0.75 + 0.25 * Math.sin(tt * 13 + seed * 3.1 + i * 2), h = size * (1.05 - i * 0.25) * fl * k, w = size * (0.62 - i * 0.14) * k;
+    if (h <= 1) continue;
+    const g = ctx.createRadialGradient(mx, my, 1, mx, my - h * 0.3, h);
+    g.addColorStop(0, i === 2 ? 'rgba(255,250,210,0.95)' : i === 1 ? 'rgba(255,200,80,0.9)' : 'rgba(255,110,30,0.85)'); g.addColorStop(1, 'rgba(255,60,10,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(mx, my - h * 0.25, w, h * 0.7, 0, 0, 6.283); ctx.fill();
+  }
+}
+function glow(x, y, r, a, col) { const g = ctx.createRadialGradient(x, y, 2, x, y, r); g.addColorStop(0, (col || 'rgba(255,160,70,A)').replace('A', a)); g.addColorStop(1, 'rgba(255,110,30,0)'); ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2); }
+function rr(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+// An original pinecone, drawn in code (no image file): an upright cone, rounded and a little narrower at the top, made of
+// rows of overlapping scales (each a rounded lip with a light edge), a scalloped outline where the scale tips meet the
+// edge, and a short woody stem. Drawn once per pixel size into an offscreen canvas and reused as a sprite.
+function drawPineconeShape(c, S) {
+  const u = (v) => v * S, top = 0.13, bot = 0.96;
+  const rows = S >= 40 ? 6 : S >= 24 ? 5 : 4, dy = (bot - top) / rows;
+  const half = (y) => { const t = Math.max(0, Math.min(1, (y - top) / (bot - top))); return 0.285 * Math.pow(Math.sin(Math.PI * (0.10 + 0.86 * t)), 0.62); };
+  // outline: the cone's profile with a small bump at each row of scale tips
+  const body = () => { c.beginPath(); const N = 60;
+    for (let i = 0; i <= N; i++) { const y = top + (bot - top) * i / N, ph = ((y - top) / dy) % 1, b = 1 + 0.09 * Math.sin(Math.PI * ph); c.lineTo(u(0.5 + half(y) * b), u(y)); }
+    for (let i = N; i >= 0; i--) { const y = top + (bot - top) * i / N, ph = ((y - top) / dy + 0.5) % 1, b = 1 + 0.09 * Math.sin(Math.PI * ph); c.lineTo(u(0.5 - half(y) * b), u(y)); }
+    c.closePath(); };
+  c.fillStyle = 'rgba(35,16,4,0.38)'; c.beginPath(); c.ellipse(u(0.535), u(0.57), u(0.32), u(0.43), 0, 0, 6.283); c.fill();     // shadow on the log
+  const g = c.createLinearGradient(u(0.25), u(top), u(0.8), u(bot)); g.addColorStop(0, '#c98a4c'); g.addColorStop(1, '#7c4421');
+  body(); c.fillStyle = g; c.fill();
+  c.save(); body(); c.clip();
+  const per = 2.6, lw = Math.max(0.9, S * 0.04);
+  for (let r = 0; r <= rows; r++) {
+    const y = top + r * dy, dx = (2 * 0.285) / per, off = (r % 2) ? dx / 2 : 0;
+    for (let x = 0.5 - 0.3 - dx + off; x <= 0.5 + 0.3 + dx; x += dx) {
+      c.beginPath(); c.moveTo(u(x - dx * 0.5), u(y - dy * 0.05)); c.quadraticCurveTo(u(x), u(y + dy * 1.2), u(x + dx * 0.5), u(y - dy * 0.05));
+      c.strokeStyle = 'rgba(245,200,140,0.95)'; c.lineWidth = lw * 1.25; c.stroke();
+      c.beginPath(); c.moveTo(u(x - dx * 0.5), u(y + dy * 0.12)); c.quadraticCurveTo(u(x), u(y + dy * 1.38), u(x + dx * 0.5), u(y + dy * 0.12));
+      c.strokeStyle = '#3b1f0b'; c.lineWidth = lw; c.stroke();
+    }
+  }
+  const sh = c.createLinearGradient(u(0.2), 0, u(0.8), 0); sh.addColorStop(0, 'rgba(255,225,180,0.12)'); sh.addColorStop(0.5, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(25,10,0,0.30)');
+  c.fillStyle = sh; c.fillRect(0, 0, S, S); c.restore();
+  body(); c.strokeStyle = '#2c1607'; c.lineJoin = 'round'; c.lineWidth = Math.max(1, S * 0.038); c.stroke();
+  c.strokeStyle = '#5c3b1c'; c.lineCap = 'round'; c.lineWidth = Math.max(1.3, S * 0.07); c.beginPath(); c.moveTo(u(0.5), u(top + 0.01)); c.quadraticCurveTo(u(0.5), u(0.055), u(0.56), u(0.035)); c.stroke();   // stem
+}
+const CONES = {};
+function coneSprite(px) { const k = Math.max(8, Math.round(px)); if (CONES[k]) return CONES[k];
+  const cv = document.createElement('canvas'); cv.width = cv.height = k; drawPineconeShape(cv.getContext('2d'), k); return (CONES[k] = cv); }
+function cone(x, y, s, a) { const sp = coneSprite(s * dpr); ctx.globalAlpha = a == null ? 1 : a; ctx.drawImage(sp, x - s / 2, y - s / 2, s, s); ctx.globalAlpha = 1; }   // Q-011
+function setMeter(html) { $('meter').innerHTML = html; }
+function setStatus(t, sub, cls) { const s = $('status'); s.textContent = t || ''; s.className = 'status-line' + (cls ? ' ' + cls : ''); $('status-sub').textContent = sub || ''; }
+// the two choice buttons: same element style, same size, side by side over the empty tray area; never pressed by the game itself
+function placeAfter() { const a = $('after'); if (a.hidden) return; const r = cv.getBoundingClientRect(), w = $('wrap').getBoundingClientRect(); const h = Math.min(56, Math.max(46, cell * 2.2));
+  Object.assign(a.style, { left: (r.left - w.left + ox) + 'px', width: (cell * 8) + 'px', top: (r.top - w.top + oy + cell * 8 + cell * 0.5) + 'px', height: h + 'px' }); }
+function offer(goLabel, onGo, onStop, stopLabel) { const a = $('after'); a.hidden = false; $('opt-go').textContent = goLabel; $('opt-stop').textContent = stopLabel || 'Stop here';
+  $('opt-go').onclick = () => { a.hidden = true; onGo(); }; $('opt-stop').onclick = () => { a.hidden = true; onStop(); }; requestAnimationFrame(placeAfter); }
+function hideOffer() { $('after').hidden = true; }
+let FONT = null; const font = () => FONT || (FONT = getComputedStyle(document.body).getPropertyValue('--display') || 'system-ui');
+
+// ---------------------------------------------------------------- the street: three cottages (the Core Loop Lab's placeholder home), one per 40 cells
+// 'A' = Street 1 (both arms' first board, and P0's Round 2). 'B' = P1's Street 2: the same cottages in other sizes and order, and a pine.
+// Q-011: the homes are drawn larger (A 1.2 -> 1.4 cells; B scaled to fit under the goal line) in a taller band above the shed.
+const BAND = 2.6, GROUND = 1.84;                      // street band height, in cells (Q-010: 1.35; Q-021: 2.05 -> 2.6, room for the warmth bars)
+const STREETS = {
+  A: { homes: [{ x: 1.45, s: 1.4, roof: '#c8d6e6' }, { x: 4.15, s: 1.4, roof: '#c8d6e6' }, { x: 6.85, s: 1.4, roof: '#c8d6e6' }], trees: [] },
+  B: { homes: [{ x: 1.3, s: 1.15, roof: '#d9c7b0' }, { x: 4.6, s: 1.5, roof: '#c8d6e6' }, { x: 7.0, s: 1.25, roof: '#b9c9a8' }], trees: [{ x: 2.8, s: 1.3 }, { x: 3.25, s: 0.9 }] },
+};
+const GOAL = 'Warm all 3 homes';
+// Q-018 warmth trail (display only; approved Oct 25 2026). Each distinct cell a burn clears sends one small ember to the window of
+// the home that cell's warmth really goes to: homes fill in order, 40 cells each, so a burn that finishes one home carries on into
+// the next. The window fills as its embers land. Warmth past the 120-cell target is not credited: those embers rise and fade.
+// Nothing here changes the game state, score, records, sounds, input lock or any timing: embers leave on the burn's own schedule and
+// all land before the existing lock ends. Reduced motion: no embers and no pulse; the windows show the true count at once (as before).
+const TRAIL = { LAUNCH: 200, FLY: 300, PULSE: 350 };
+function reducedMotion() { try { return !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } }
+function windowCenter(street, k) { const hm = STREETS[street].homes[k], s = cell * hm.s, by = cell * GROUND - s * 0.4 - s * 0.02, h = s * 0.42; return { x: ox + cell * hm.x, y: by + h * 0.47 }; }
+function drawCottage(x, y, s, part, blaze, roof, snow) {   // Core Loop Lab drawHome, with the window filling as its 40 cells burn
+  const w = s * 0.78, h = s * 0.42, bx = x - w / 2, by = y - s * 0.02;
+  // Q-011: a home that is not yet warm sits in a soft cold halo, fading as it warms; its window is frosted until it fills
+  if (part < 1) { const k = 1 - part, gr = ctx.createRadialGradient(x, by + h * 0.1, s * 0.1, x, by + h * 0.1, s * 0.85); gr.addColorStop(0, 'rgba(150,200,240,' + (0.30 * k) + ')'); gr.addColorStop(1, 'rgba(150,200,240,0)'); ctx.fillStyle = gr; ctx.fillRect(x - s, by - s * 0.8, s * 2, s * 1.6); }
+  ctx.fillStyle = '#5a6172'; ctx.fillRect(bx + w * 0.66, by - s * 0.36, s * 0.12, s * 0.24);
+  ctx.fillStyle = roof; ctx.beginPath(); ctx.moveTo(bx - s * 0.06, by); ctx.lineTo(x, by - s * 0.34); ctx.lineTo(bx + w + s * 0.06, by); ctx.closePath(); ctx.fill();
+  if (snow > 0) { const d = s * 0.075 * snow; ctx.globalAlpha = Math.min(1, 0.35 + snow); ctx.fillStyle = '#eef4f9';   // Q-024 H: snow on a cold roof, melting as the home warms
+    ctx.beginPath(); ctx.moveTo(bx - s * 0.06, by); ctx.lineTo(x, by - s * 0.34); ctx.lineTo(bx + w + s * 0.06, by); ctx.lineTo(bx + w + s * 0.06 - d * 1.3, by + 0.01); ctx.lineTo(x, by - s * 0.34 + d * 1.6); ctx.lineTo(bx - s * 0.06 + d * 1.3, by + 0.01); ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1; }
+  ctx.fillStyle = '#767a8c'; ctx.fillRect(bx, by, w, h);
+  const wx = x - s * 0.13, wy = by + h * 0.22, ww = s * 0.26, wh = h * 0.5;
+  ctx.fillStyle = '#151821'; ctx.fillRect(wx, wy, ww, wh);
+  if (part >= 1) { ctx.fillStyle = '#ffc46a'; ctx.fillRect(wx, wy, ww, wh); glow(x, wy + wh / 2, s * (0.9 + 0.5 * blaze), 0.45 + 0.4 * blaze); }
+  else if (part > 0) { ctx.fillStyle = 'rgba(255,170,80,' + (0.15 + 0.5 * part) + ')'; ctx.fillRect(wx, wy + wh * (1 - part), ww, wh * part); }
+  if (part < 1) { ctx.strokeStyle = 'rgba(185,222,248,0.95)'; ctx.lineWidth = Math.max(1, s * 0.035); ctx.strokeRect(wx + 0.5, wy + 0.5, ww - 1, wh - 1);   // frosted frame and cross bars
+    ctx.beginPath(); ctx.moveTo(wx + ww / 2, wy); ctx.lineTo(wx + ww / 2, wy + wh); ctx.moveTo(wx, wy + wh / 2); ctx.lineTo(wx + ww, wy + wh / 2); ctx.lineWidth = Math.max(0.8, s * 0.022); ctx.stroke(); }
+  return { cx: bx + w * 0.72, cy: by - s * 0.36 };   // chimney top, for smoke
+}
+function drawPine(x, y, s) { ctx.fillStyle = '#4a3a2c'; ctx.fillRect(x - s * 0.05, y - s * 0.12, s * 0.1, s * 0.14); ctx.fillStyle = '#2f4a3c';
+  for (let k = 0; k < 3; k++) { const ty = y - s * 0.1 - k * s * 0.18, tw = s * (0.36 - k * 0.08); ctx.beginPath(); ctx.moveTo(x - tw, ty); ctx.lineTo(x, ty - s * 0.3); ctx.lineTo(x + tw, ty); ctx.closePath(); ctx.fill(); } }
+
+// Q-021 T: snow, drawn in code: a soft drift filling the cell, a little bluer at its edges, with two glints. It holds no wood.
+function drawSnow(x, y, s, a) { ctx.globalAlpha = a == null ? 1 : a;
+  const g = ctx.createLinearGradient(x, y, x, y + s); g.addColorStop(0, '#f2f7fb'); g.addColorStop(1, '#bcd2e4'); ctx.fillStyle = g; rr(x + 1.5, y + 1.5, s - 3, s - 3, s * 0.24); ctx.fill();
+  ctx.strokeStyle = 'rgba(120,165,205,0.9)'; ctx.lineWidth = Math.max(1, s * 0.04); ctx.stroke();
+  ctx.fillStyle = 'rgba(150,190,225,0.55)'; ctx.beginPath(); ctx.ellipse(x + s * 0.5, y + s * 0.78, s * 0.32, s * 0.08, 0, 0, 6.283); ctx.fill();
+  ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(x + s * 0.32, y + s * 0.3, s * 0.05, 0, 6.283); ctx.arc(x + s * 0.66, y + s * 0.44, s * 0.035, 0, 6.283); ctx.fill(); ctx.globalAlpha = 1; }
+// a thawing cell (k: 0 when the fire beside it reaches it, 1 when it has gone): the drift sinks and fades, a little steam rises, a wet sheen lingers
+function drawMelt(x, y, s, k) { if (k < 0) return drawSnow(x, y, s);
+  if (k < 1 && reducedMotion()) return drawSnow(x, y, s, 1 - k);   // Q-024 polish-2 (R1): thawing snow fades in place, no sinking or steam
+  if (k < 1) { ctx.save(); ctx.translate(x + s / 2, y + s); ctx.scale(1 - 0.15 * k, 1 - 0.55 * k); drawSnow(-s / 2, -s, s, 1 - k); ctx.restore();
+    for (let i = 0; i < 3; i++) { ctx.fillStyle = 'rgba(225,238,248,' + (0.45 * (1 - k)) + ')'; ctx.beginPath(); ctx.arc(x + s * (0.3 + 0.2 * i), y + s * (0.5 - 0.45 * k) - i * s * 0.06, s * (0.07 + 0.05 * k), 0, 6.283); ctx.fill(); } return; }
+  if (k < 2.2) { ctx.fillStyle = 'rgba(150,200,240,' + (0.2 * (1 - (k - 1) / 1.2)) + ')'; rr(x + 3, y + 3, s - 6, s - 6, s * 0.2); ctx.fill(); } }
+
+// ---------------------------------------------------------------- Q-024 M: what a placement really did, and how it is told
+// Read-only: computed from the game's own state after the placement (which is settled before any animation) and never written back.
+// points  = the score's real increase for this placement (its placement and burn points, plus the Firestorm bonus if it was one)
+// useful  = per home, the warmth that counted toward that home's target (a home already warm takes none; nothing past a target counts;
+//           thawed snow is not fuel and gives none); warmth = their sum
+// A placement is "meaningful" (one acknowledgement near the board) when it was a Firestorm, made a home warm, burned two or more lines
+// at once, or set off a pinecone chain. Ordinary placements and single-line clears stay quiet: the score's small "+N" and the homes' bars.
+const HOME_NAMES = { 2: ['left', 'right'], 3: ['left', 'middle', 'right'], 4: ['far-left', 'left', 'right', 'far-right'] };
+const cap1 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+function moveSummary(H, e, c, points) { const G = H.G, wb = H.warmBefore, pooled = G.mode === 'pooled';
+  const useful = G.warm.map((w, k) => pooled ? 0 : Math.max(0, Math.min(G.targets[k], w) - Math.min(G.targets[k], wb[k])));
+  const completed = pooled ? [] : G.warm.map((w, k) => wb[k] < G.targets[k] && w >= G.targets[k] ? k : -1).filter(k => k >= 0);
+  const warmth = pooled ? Math.max(0, Math.min(G.total, G.pool) - Math.min(G.total, H.poolBefore)) : useful.reduce((s, n) => s + n, 0);
+  const lines = e.rows.length + e.cols.length, chain = e.waves.length > 1;
+  return { points, warmth, useful, completed, lines, chain, pines: c.pines, cleared: e.cleared, thawed: (e.thawed || []).length, firestorm: c.firestorm, bonus: c.bonus,
+    meaningful: e.cleared > 0 && (c.firestorm || completed.length > 0 || lines >= 2 || chain), won: false }; }
+function capText(mv, homes) { const nm = HOME_NAMES[homes] || [], pts = '+' + mv.points + ' points', wm = mv.warmth > 0 ? '+' + mv.warmth + ' warmth' : 'space cleared';
+  const ln = mv.lines === 2 ? 'Two lines' : mv.lines === 3 ? 'Three lines' : mv.lines + ' lines';
+  if (mv.firestorm) return { big: true, head: 'FIRESTORM', detail: [ln + ' · ' + mv.pines + ' pinecones', pts + ' (+' + mv.bonus + ' bonus) · ' + wm] };
+  const head = mv.completed.length > 1 ? (mv.completed.length === 2 ? 'Two homes warm' : mv.completed.length + ' homes warm') : mv.completed.length ? cap1(nm[mv.completed[0]] || 'a') + ' home warm'
+    : mv.lines >= 2 ? ln + ' at once' : 'Pinecone chain';
+  const what = mv.completed.length ? (mv.lines >= 2 ? ln + ' · ' : mv.chain ? 'Chain · ' : '') : '';
+  return { big: false, head, detail: [what + pts + ' · ' + wm] }; }
+// the score's own "+N points", right beside the score, in the place of the street's name (which the status line also shows): every
+// burn shows its real points there briefly; a meaningful placement makes the score glow. The name's box keeps its width, so nothing moves.
+let cueTimer = 0;
+function scoreCueClear() { clearTimeout(cueTimer); const d = $('m-label'), s = $('m-score'); if (d) { d.textContent = HFG.label || ''; d.className = 'boardno'; d.style.minWidth = ''; } if (s) s.classList.remove('glow'); }
+function scoreCue(mv) { if (!mv || !mv.cleared || mv.points <= 0) return; const d = $('m-label'), s = $('m-score'); if (!d) return; scoreCueClear();
+  d.style.minWidth = d.getBoundingClientRect().width + 'px'; d.textContent = '+' + mv.points + ' points'; d.className = 'boardno cue' + (mv.meaningful ? ' strong' : '');
+  if (mv.meaningful && s && !reducedMotion()) { void s.offsetWidth; s.classList.add('glow'); }
+  cueTimer = setTimeout(scoreCueClear, mv.meaningful ? 2200 : 1500); }
+function staticSmoke(ch, s) { ctx.fillStyle = 'rgba(205,210,220,0.45)'; [[0.02, -0.12, 0.07], [0.07, -0.26, 0.09], [0.0, -0.42, 0.11]].forEach(([dx, dy, r]) => { ctx.beginPath(); ctx.arc(ch.cx + s * dx, ch.cy + s * dy, s * r, 0, 6.283); ctx.fill(); }); }
+// ---------------------------------------------------------------- Q-024 H: the lane's before-and-after inside the normal win
+// Shown over the finished board during the existing victory moment (two seconds or a tap, unchanged), then left in place under the same
+// two choices as before. A tap shows the after at once. A replay of a street that was already warm is shown as it is ("stays warm"), never
+// as a new restoration. If this browser did not keep the win, the card says so (the existing status line does too).
+let cardTok = 0;
+function siteView(id) { const st = SITES[id], w = 200, h = 117; if (!st) return null; const x = Math.max(0, Math.min(360 - w, st.x - w / 2)), y = Math.max(0, Math.min(210 - h, st.y - 88)); return x + ' ' + y + ' ' + w + ' ' + h; }
+function winCardHide() { cardTok++; const c = $('wincard'); if (c) { c.hidden = true; c.innerHTML = ''; c.onclick = null; } HFG.card = null; }
+function winCardPlace() { const c = $('wincard'); if (!c || c.hidden) return; const r = cv.getBoundingClientRect(), w = $('wrap').getBoundingClientRect();
+  Object.assign(c.style, { left: (r.left - w.left + ox) + 'px', top: (r.top - w.top + oy) + 'px', width: (cell * 8) + 'px', height: (cell * 8) + 'px' }); }
+function winCardShow(G, L, res, v) { const c = $('wincard'), tok = ++cardTok, rm = reducedMotion(), first = !!res.firstWin;
+  const after = warmSet(), before = new Set(after); before.delete(L.id); const anim = first && !rm;
+  c.innerHTML = '<p class="wc-stage" id="wc-stage">' + (anim ? 'Before' : first ? 'Now' : 'Already warm') + '</p><p class="wc-title">' + esc(L.name) + (first ? ' is warm' : ' stays warm') + '</p>' +
+    sceneSvg(anim ? before : after, { instant: !anim, focus: L.id, view: siteView(L.id) }) + '<p class="wc-text">' + esc(first ? SITE_TEXT[L.id] || '' : 'Restored on an earlier run: it stays as it is.') + '</p>' +
+    (!SAVES || res.saved ? '' : '<p class="wc-warn">' + (res.keptBefore ? 'This run was not saved; the street stays warm from before.' : 'Warm for this visit only: this browser did not save it.') + '</p>');
+  c.hidden = false; G.card = { tok }; winCardPlace();
+  if (first && !P.seen[L.id]) { P.seen[L.id] = true; if (SAVES) writeProgress(); }   // the lane does not replay what was just shown
+  const finish = () => { if (tok !== cardTok) return; const s = c.querySelector('[data-site="' + L.id + '"]'); if (s) { s.classList.remove('cold'); s.classList.add('warm'); } const st = $('wc-stage'); if (st && first) st.textContent = 'Now'; };
+  c.onclick = () => { if (tok !== cardTok) return; const s = c.querySelector('svg'); if (s) s.classList.add('instant'); finish(); if (G.victory === v) v.skip = true; };
+  if (anim) setTimeout(finish, FAST() ? 0 : 300); }
+
+// ================================================================= THE WOODSHED (Q-007's, condition C)
+const HFG = {
+  // opts: { level, rec } (Q-019: a chapter street)
+  start(opts) {
+    this.epoch = (this.epoch || 0) + 1; this.result = null;   // Q-019: a new attempt; anything the last one left running stops acting
+    Object.assign(this, { board: opts.board, street: opts.street, rec: opts.rec, drag: null, busy: false, anim: null, over: false, frozen: false, won: false, allLit: false, fsCount: opts.fsStart || 0, bonus: 0, fx: null, banner: null, pv: null, victory: null, homesLit: 0, trail: [], cap: null, tags: [], warmAt: [], smokeAt: [], lastMove: null, lastCold: -1, coldSaid: false, card: null });
+    const L = opts.level, V = opts.variant; Object.assign(this, { level: L, variant: V, street: L.id, homes: L.homes, goal: goalText(L.homes), label: (L.index + 1) + ' · ' + L.name, maxFire: 0, warmBefore: null, poolBefore: 0 });
+    // Q-021: the street's authored setup (logs 'L', pinecones 'P', snow 'S') and its seed's first tray, with the lane rules; the goal per home
+    this.seed = V.seed; this.g = newStreetGame(V); this.G = newGoal(L, opts.goalMode); this.replayOk = true;
+    this.burnedBase = this.g.burned; this.scoreBase = this.g.score; this.scoreStart = opts.scoreStart || 0;
+    // Q-021 R: an exact resume replays the run's own placements on that same setup (never from an empty board); the flow then compares
+    // the result with what was saved (board, tray, random draws, score, warmth) and refuses the resume if anything differs
+    if (opts.moves) for (const m of opts.moves) { const piece = this.g.tray[m[0]], before = this.g.b.map(r => r.slice()), e = piece ? HF.place(this.g, m[0], m[1], m[2], true) : null;
+      if (!e) { this.replayOk = false; break; } const c = FS.classify(e, before, piece, m[1], m[2]); if (c.firestorm) { this.fsCount++; this.bonus += c.bonus; } creditGoal(this.G, e); this.maxFire = Math.max(this.maxFire, e.cleared); }
+    this.homesLit = homesWarm(this.G);
+    this.warmAt = this.G.targets.map((_, k) => this.homePart(k, 0) >= 1 ? -1e9 : null); winCardHide(); scoreCueClear();   // Q-024: homes already warm do not replay their change
+    this.t0 = now();
+    this.layout = (w, h) => { const c = Math.floor(Math.min((w - 8) / 8.3, (h - 6) / (8 + BAND + 3.0), 56)); return { cell: c, w: Math.round(c * 8.3), h: Math.round(c * (8 + BAND + 3.0)) + 6, ox: Math.round(c * 0.15), oy: Math.round(c * BAND) }; };
+    setStatus(''); hideOffer(); this.meter();
+    if (this.rec) { this.rec.replayOk = this.replayOk; this.rec.opp_start = FS.opportunities(this.g).length; this.rec.key_start = FS.boardKey(this.g); }
+  },
+  // Q-019: leaving a street ends its attempt; work still pending from it (a burn, the victory moment, delayed pops) then does nothing
+  abandon() { this.epoch = (this.epoch || 0) + 1; Object.assign(this, { busy: false, anim: null, banner: null, fx: null, victory: null, drag: null, pv: null, trail: [], cap: null, tags: [] }); winCardHide(); scoreCueClear(); },
+  boardBurned() { return this.g.burned - this.burnedBase; },
+  // Q-018: the windows show the true count less the warmth still in the air (never above the target, never going back)
+  // Q-021 W: how full home k's window is: its true warmth (never above its target) less the embers still flying to it
+  homePart(k, t) { const G = this.G, air = (j) => { let n = 0; if (!reducedMotion()) for (const m of this.trail) if (m.home === j && m.land > t) n++; return n; };
+    if (G.mode !== 'pooled') return Math.max(0, Math.min(G.targets[k], G.warm[k]) - air(k)) / G.targets[k];
+    let pool = Math.min(G.total, G.pool); for (let j = 0; j < G.targets.length; j++) pool -= air(j); let before = 0; for (let j = 0; j < k; j++) before += G.targets[j];
+    return Math.max(0, Math.min(1, (pool - before) / G.targets[k])); },
+  // Q-021 W: each burned cell's ember flies to the home above its column while that home still wants warmth; past its target it rises and fades
+  trailLaunch(e, times) { if (reducedMotion()) return; const G = this.G, wb = this.warmBefore || G.warm, used = G.warm.map(() => 0); let j = 0;
+    Object.keys(times).map(k => { const [c, r] = k.split(',').map(Number); return { c, r, go: times[k] + TRAIL.LAUNCH }; }).sort((a, b) => a.go - b.go)
+      .forEach((m) => { if (G.mode === 'pooled') { const p = this.poolBefore + j++; let k = -1; if (p < G.total) { let acc = 0; for (k = 0; k < G.targets.length; k++) { acc += G.targets[k]; if (p < acc) break; } } m.home = k; }
+        else { const k = bandOf(G, m.c); m.home = k >= 0 && wb[k] + used[k] < G.targets[k] ? k : -1; if (m.home >= 0) used[k]++; }
+        m.land = m.go + TRAIL.FLY; this.trail.push(m); }); },
+  score() { return this.scoreStart + (this.g.score - this.scoreBase) + this.bonus; },
+  meter() { if (!$('m-score')) setMeter('<span class="boardno" id="m-label"></span><span class="score" id="m-score"></span><span class="fs-chip" id="m-fs"></span>');
+    if (!/cue/.test($('m-label').className)) $('m-label').textContent = this.label || ''; $('m-score').textContent = this.score(); const f = $('m-fs'); f.textContent = 'Firestorms ' + this.fsCount; f.className = 'fs-chip' + (this.fsCount ? ' lit' : ''); },
+  trayRect(i) { const w = cell * 8 / 3, x = ox + i * w, y = oy + cell * 8 + cell * 0.3; return { x, y, w, h: cell * 2.7 }; },
+  pieceBox(p) { const xs = p.cells.map(c => c[0]), ys = p.cells.map(c => c[1]); return { w: Math.max(...xs) + 1, h: Math.max(...ys) + 1 }; },
+  down(p) { if (this.victory) { this.victory.skip = true; return; }
+    if (this.busy || this.over || this.frozen) return; for (let i = 0; i < 3; i++) { const r = this.trayRect(i), piece = this.g.tray[i]; if (!piece) continue;
+      if (p.x >= r.x && p.x < r.x + r.w && p.y >= r.y - cell * 0.3 && p.y < r.y + r.h) { if (this.cap && now() >= this.cap.until) this.cap = null; this.drag = { i, x: p.x, y: p.y }; SND.tick(); if (this.rec && this.rec.first_touch == null) this.rec.first_touch = Math.round(now() - this.t0); return; } } },
+  move(p) { if (this.drag) { this.drag.x = p.x; this.drag.y = p.y; } },
+  snap() { const d = this.drag; if (!d) return null; const piece = this.g.tray[d.i], b = this.pieceBox(piece);
+    const px = d.x - b.w * cell / 2, py = d.y - cell * 1.1 - b.h * cell;
+    const gx = Math.round((px - ox) / cell), gy = Math.round((py - oy) / cell);
+    return { px, py, gx, gy, ok: HF.fits(this.g, piece, gx, gy) }; },
+  async up() { const d = this.drag; if (!d) return; const sn = this.snap(); this.drag = null; this.pv = null;
+    if (!sn.ok) { if (this.rec) this.rec.misses = (this.rec.misses || 0) + 1; return; }
+    await this.drop(d.i, sn.gx, sn.gy); },
+  // one placement: the lab's HF.place, untouched; then the Firestorm layer reads what happened; then the street checks its target
+  async drop(i, gx, gy) {
+    if (this.busy || this.over || this.frozen) return null; const piece = this.g.tray[i]; if (!piece || !HF.fits(this.g, piece, gx, gy)) return null;
+    const opp = FS.opportunities(this.g), ep = this.epoch;   // Q-019: the attempt this placement belongs to
+    this.tags = []; this.cap = null; scoreCueClear();   // Q-024 M: a new placement supersedes the last one's "+n" and "+N points"
+    const before = this.g.b.map(r => r.slice()), s0 = this.g.score, sc0 = this.score();
+    const e = HF.place(this.g, i, gx, gy, true); if (!e) return null;
+    const c = FS.classify(e, before, piece, gx, gy);
+    SND.clack();
+    const t = Math.round(now() - this.t0); if (this.rec && this.rec.first_place == null) this.rec.first_place = t;
+    if (this.rec) { this.rec.moves.push([i, gx, gy, t, c.lines, c.pines, c.depth, c.firestorm ? 1 : 0, opp.length, c.wrecked, this.g.score - s0, c.bonus, this.boardBurned()]); this.rec.placements = this.rec.moves.length; }
+    if (c.firestorm) { this.fsCount++; this.bonus += c.bonus; }
+    // the target is checked now, before any animation, so the result of a placement never depends on timing
+    this.warmBefore = this.G.warm.slice(); this.poolBefore = this.G.pool; creditGoal(this.G, e); this.maxFire = Math.max(this.maxFire, e.cleared);   // Q-021 W: warmth by band
+    this.lastMove = moveSummary(this, e, c, this.score() - sc0);   // Q-024 M: what this placement really did (read only)
+    // Q-019: a win is recorded now, from this attempt. Q-021 R: otherwise the placement is saved now (before any animation) for an exact resume
+    const reached = !this.won && goalMet(this.G); this.lastMove.won = reached; if (reached) { this.won = true; this.frozen = true; flow.earned(this); } else flow.committed(this);
+    if (e.cleared) { this.busy = true; await this.animateBurn(e, FS.landed(before, piece, gx, gy), c); if (this.epoch !== ep) return { e, c, reached, stale: true }; this.busy = false; }
+    const lit = homesWarm(this.G); if (lit > this.homesLit) { this.homesLit = lit; SND.window(); }
+    this.meter();
+    if (this.rec) { this.rec.boardBurned = this.boardBurned(); this.rec.score = this.score(); this.rec.firestorms = this.rec.moves.filter(m => m[7]).length; }
+    if (reached) flow.win(this, 'natural', ep);
+    else if (this.g.over) flow.fail(this);
+    else saveSoon();
+    return { e, c, reached };
+  },
+  async animateBurn(e, landed, c) {
+    const t0 = now(), pc = e.placed[0], times = {}, ep = this.epoch;
+    e.waves[0].forEach(([cc, r]) => { const dist = Math.min(e.rows.includes(r) ? Math.abs(cc - pc[0]) : 99, e.cols.includes(cc) ? Math.abs(r - pc[1]) : 99); times[cc + ',' + r] = t0 + dist * 45; });
+    let tEnd = Math.max(...Object.values(times));
+    e.waves.slice(1).forEach((wave) => wave.forEach(([cc, r, fc, fr]) => { const t = (times[fc + ',' + fr] || tEnd) + 150; times[cc + ',' + r] = t; tEnd = Math.max(tEnd, t); }));
+    const thaw = {}; (e.thawed || []).forEach(([sc, sr]) => { let tt = null; for (const [dx, dy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) { const v = times[(sc + dx) + ',' + (sr + dy)]; if (v !== undefined && (tt == null || v < tt)) tt = v; }
+      thaw[sc + ',' + sr] = (tt == null ? t0 : tt) + 160; tEnd = Math.max(tEnd, thaw[sc + ',' + sr]); });   // Q-021 T
+    this.anim = { times, thaw, before: landed, t0 }; this.trailLaunch(e, times); this.capStart(e, c, t0, tEnd); if (e.thawed && e.thawed.length) setTimeout(() => { if (this.epoch === ep) SND.thaw(); }, 200);
+    SND.crackle(e.cleared);
+    const pops = {};
+    e.waves.slice(1).forEach((wave) => { wave.forEach(([cc, r, fc, fr]) => { if (this.anim.before[fr][fc] === 2) { const t = times[fc + ',' + fr] + 40 - t0; const k = fc + ',' + fr; if (!pops[k]) { pops[k] = 1; setTimeout(() => { if (this.epoch !== ep) return; SND.pop(1); shake.until = now() + 160; shake.amp = 5; burst(ox + fc * cell + cell / 2, oy + fr * cell + cell / 2, 16, { speed: cell * 4, r: cell * 0.09, c: 'rgba(255,200,90,A)', life: 500 }); }, t); } } }); });
+    if (e.rows.length + e.cols.length > 1) shake.until = now() + 220, shake.amp = 4;
+    if (c.firestorm) {
+      const pins = c.pineList.map(p => Object.assign({}, p, { t: times[p.c + ',' + p.r] })).sort((a, b) => a.t - b.t);
+      pins.forEach((p, k) => { p.n = k + 1; if (p.from) streaks.push({ ax: ox + p.from[0] * cell + cell / 2, ay: oy + p.from[1] * cell + cell / 2, bx: ox + p.c * cell + cell / 2, by: oy + p.r * cell + cell / 2, t0: p.t - 150, dur: 150 }); });
+      this.fx = { pins, until: tEnd + 2400 };
+    }
+    await sleep(tEnd - t0 + 520); if (this.epoch !== ep) return; this.anim = null; this.meter(); scoreCue(this.lastMove);   // Q-024 M: the points arrive at the score
+    if (c.firestorm) {
+      SND.firestorm(); shake.until = now() + 380; shake.amp = 7;
+      for (let k = 0; k < 4; k++) burst(ox + cell * (1 + k * 2), oy + cell * 4, 24, { speed: cell * 5, r: cell * 0.1, c: 'rgba(255,190,80,A)', life: 800, g: cell * 3 });
+      this.meter();   // Q-024 M: the Firestorm is named by the placement's one acknowledgement (capStart), not by a second banner
+      await sleep(900);
+    }
+  },
+  // Q-024 M: set up this placement's acknowledgement (meaningful placements only) and each home's "+n" (useful warmth only). The
+  // acknowledgement is drawn over the half of the shed away from the fire, from just after the burn starts until the existing input lock
+  // ends (burn + 520 ms, + 900 ms after a Firestorm, all unchanged), so it never covers a placement the player could make. With reduced
+  // motion (no embers flying to the homes) it stays up for at least 1.6 s ('show'); the burn and the lock are exactly as long as with
+  // motion, and the hold never blocks anything: picking up a piece dismisses it at once, and the victory still waits only for the lock.
+  capStart(e, c, t0, tEnd) { const mv = this.lastMove; if (!mv) return; const lockEnd = tEnd + 520 + (c.firestorm ? 900 : 0);
+    mv.useful.forEach((n, k) => { if (!n) return; let a = Infinity, z = 0; for (const m of this.trail) if (m.home === k && m.go >= t0) { a = Math.min(a, m.land); z = Math.max(z, m.land); }
+      if (!isFinite(a)) { a = t0 + 200; z = a + 300; } this.tags.push({ home: k, n, t0: a, until: z + 1400 }); });
+    if (!mv.meaningful || (mv.won && !mv.firestorm)) return;   // the winning placement is acknowledged by the victory itself, unless it was a Firestorm
+    const cells = e.waves[0], avg = cells.reduce((s, x) => s + x[1], 0) / Math.max(1, cells.length);
+    this.cap = Object.assign(capText(mv, this.homes), { t0: t0 + 160, until: lockEnd, show: reducedMotion() ? Math.max(lockEnd, t0 + 160 + 1600) : lockEnd, row: avg >= 3.5 ? 1.9 : 6.1 }); },
+  drawPieceCell(v, x, y, s, a) { if (v === 3) return drawSnow(x, y, s, a); ctx.globalAlpha = a == null ? 1 : a;   // Q-021 T: snow
+    const pine = v === 2;
+    ctx.fillStyle = pine ? '#7d4a24' : '#8a5a33'; rr(x + 1, y + 1, s - 2, s - 2, s * 0.16); ctx.fill();
+    ctx.fillStyle = pine ? '#9a5d2e' : '#a8713f'; rr(x + 1, y + 1, s - 2, s * 0.42, s * 0.16); ctx.fill();
+    ctx.strokeStyle = '#4c2f19'; ctx.lineWidth = Math.max(1, s * 0.05); ctx.beginPath(); ctx.moveTo(x + s * 0.2, y + s * 0.5); ctx.lineTo(x + s * 0.8, y + s * 0.5); ctx.moveTo(x + s * 0.28, y + s * 0.7); ctx.lineTo(x + s * 0.72, y + s * 0.7); ctx.stroke();
+    ctx.globalAlpha = 1;
+    if (pine) cone(x + s / 2, y + s / 2, s * 0.9, a); },
+  drawStreet(t) {
+    const S = STREETS[this.street], groundY = cell * GROUND, vk = this.victory ? (reducedMotion() ? 0.75 : 0.5 + 0.5 * Math.sin((t - this.victory.t0) / 120)) : 0;
+    // Q-011: the goal, beside the homes it names; the same words on every board, in both arms
+    ctx.fillStyle = '#e4edf5'; ctx.font = '700 ' + Math.max(12, Math.round(cell * 0.45)) + 'px ' + font(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(this.goal || GOAL, ox + cell * 4, cell * 0.34);
+    ctx.fillStyle = '#20232e'; ctx.fillRect(ox - 3, groundY, cell * 8 + 6, Math.max(2, cell * 0.06));
+    S.trees.forEach(tr => drawPine(ox + cell * tr.x, groundY, cell * tr.s));
+    const chim = [];
+    const rmo = reducedMotion();
+    S.homes.forEach((hm, k) => { const part = this.allLit ? 1 : this.homePart(k, t); if (part >= 1 && this.warmAt[k] == null) this.warmAt[k] = rmo ? -1e9 : t;   // Q-024 H: the moment this home became warm
+      const wa = this.warmAt[k], snow = part < 1 ? 1 : wa == null || rmo ? 0 : Math.max(0, 1 - (t - wa) / 700), x = ox + cell * hm.x, y = groundY - cell * hm.s * 0.4, s = cell * hm.s;
+      const ch = drawCottage(x, y, s, part, this.victory ? vk : 0, hm.roof, snow); chim.push(ch);
+      if (!rmo && wa != null && t - wa < 700) { const q = (t - wa) / 700; ctx.strokeStyle = 'rgba(255,196,106,' + (0.75 * (1 - q)) + ')'; ctx.lineWidth = Math.max(2, cell * 0.07); ctx.beginPath(); ctx.arc(x, y + s * 0.1, s * (0.5 + 0.45 * q), 0, 6.283); ctx.stroke(); }
+      if (part >= 1 && (rmo || !this.victory)) { if (rmo) staticSmoke(ch, s); else if (t - (this.smokeAt[k] || 0) > 520) { this.smokeAt[k] = t; burst(ch.cx, ch.cy, 1, { dir: -Math.PI / 2, spread: 0.5, speed: cell * 0.6, r: cell * 0.1, c: 'rgba(205,210,220,A)', a: 0.45, life: 1500 }); } } });
+    // Q-018: a window glows softly for a moment as its embers land (not during the victory moment, not with reduced motion)
+    if (!this.victory && !reducedMotion()) S.homes.forEach((hm, k) => { let p = 0; for (const m of this.trail) if (m.home === k && t >= m.land) p = Math.max(p, 1 - (t - m.land) / TRAIL.PULSE); if (p > 0) { const w = windowCenter(this.street, k); glow(w.x, w.y, cell * hm.s * 0.55, 0.32 * p); } });
+    this.drawBars(t, S);
+    if (this.victory && t - (this.victory.lastSmoke || 0) > 140) { this.victory.lastSmoke = t; chim.forEach(ch => burst(ch.cx, ch.cy, 1, { dir: -Math.PI / 2, spread: 0.6, speed: cell * 0.9, r: cell * 0.12, c: 'rgba(205,210,220,A)', a: 0.55, life: 1400 })); }
+  },
+  // Q-021 W: under each home, a bar over exactly the columns that warm it: its warmth / its target (with the preview on, what the dragged
+  // piece would add). The bars are the goal, readable with the preview off.
+  drawBars(t, S) { const G = this.G, y = cell * 1.98, h = cell * 0.48, F = font();
+    // Q-024 G: the last cold home (its bar outlined and its remaining need shown; its columns faintly tinted in the shed) - goal
+    // information only, never a suggested placement; Q-024 M: a home's "+n" (useful warmth only) while this placement's warmth arrives
+    const parts = G.bands.map((_, k) => this.allLit ? 1 : this.homePart(k, t)), cold = parts.filter(p => p < 1).length;
+    const last = G.mode !== 'pooled' && G.bands.length > 1 && cold === 1 && !this.won && !this.victory ? parts.findIndex(p => p < 1) : -1; this.lastCold = last;
+    if (last >= 0) { const note = 'Last cold home: the ' + ((HOME_NAMES[G.bands.length] || [])[last] || '') + ' one needs ' + (G.targets[last] - Math.round(parts[last] * G.targets[last])) + ' more warmth.', sub = $('status-sub');
+      if (!this.coldSaid || (sub.textContent === this.coldSaid && note !== this.coldSaid)) { sub.textContent = note; this.coldSaid = note; } }   // said once, then kept current while it is still showing
+    else if (this.coldSaid && $('status-sub').textContent === this.coldSaid) $('status-sub').textContent = '';   // and gone once that home is warm too
+    const pulse = reducedMotion() ? 1 : 0.6 + 0.4 * Math.sin(t / 380);
+    G.bands.forEach(([a, b], k) => { const x = ox + a * cell + 2, w = (b - a + 1) * cell - 4, part = parts[k], done = part >= 1;
+      ctx.fillStyle = '#1b1e28'; rr(x, y, w, h, h * 0.3); ctx.fill();
+      ctx.save(); rr(x, y, w, h, h * 0.3); ctx.clip();
+      ctx.fillStyle = done ? '#ffb052' : 'rgba(255,160,70,0.7)'; ctx.fillRect(x, y, w * part, h);
+      const pv = this.pv && !this.allLit ? this.pv : null, add = pv ? (G.mode === 'pooled' ? 0 : pv.gain[k]) : 0;
+      if (add > 0) { ctx.fillStyle = 'rgba(255,226,160,0.55)'; ctx.fillRect(x + w * part, y, w * Math.min(1 - part, add / G.targets[k]), h); }
+      ctx.restore(); ctx.strokeStyle = S.homes[k].roof; ctx.lineWidth = Math.max(1.5, cell * 0.05); rr(x, y, w, h, h * 0.3); ctx.stroke();
+      if (k === last) { ctx.strokeStyle = 'rgba(185,222,248,' + (0.95 * pulse) + ')'; ctx.lineWidth = Math.max(2, cell * 0.06); rr(x - 2.5, y - 2.5, w + 5, h + 5, h * 0.36); ctx.stroke(); }
+      const shown = Math.round(part * G.targets[k]), tag = done ? null : this.tags.find(gg => gg.home === k && t >= gg.t0 && t < gg.until);
+      const txt = G.mode === 'pooled' ? shown + '/' + G.targets[k] : done ? 'warm' : add > 0 ? shown + '/' + G.targets[k] + ' +' + add : tag ? shown + '/' + G.targets[k] + ' +' + tag.n : k === last ? 'needs ' + (G.targets[k] - shown) : shown + '/' + G.targets[k];
+      ctx.font = '700 ' + Math.max(10, Math.round(cell * (w < cell * 2.2 ? 0.27 : 0.31))) + 'px ' + F; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = done ? '#2a1606' : tag && !add ? '#ffe1a0' : '#eef1f6'; ctx.fillText(txt, x + w / 2, y + h / 2 + 1); });
+    if (G.mode === 'pooled' && this.pv && this.pv.pool > 0) { ctx.fillStyle = '#ffd27a'; ctx.font = '700 ' + Math.round(cell * 0.3) + 'px ' + F; ctx.textAlign = 'right'; ctx.fillText('+' + this.pv.pool, ox + cell * 8, cell * 0.34); } },
+  drawDividers() { const G = this.G; if (G.mode === 'pooled') return; ctx.strokeStyle = 'rgba(185,222,248,0.5)'; ctx.lineWidth = Math.max(1.5, cell * 0.05); ctx.setLineDash([cell * 0.22, cell * 0.14]);
+    for (let k = 1; k < G.bands.length; k++) { const x = ox + G.bands[k][0] * cell; ctx.beginPath(); ctx.moveTo(x, oy - cell * 0.12); ctx.lineTo(x, oy + cell * 8); ctx.stroke(); } ctx.setLineDash([]); },
+  draw(t) {
+    const g = this.g, an = this.anim; { const s0 = this.snap(); if (!s0 || !s0.ok) this.pv = null; }   // Q-021 P: no stale preview
+    this.drawStreet(t);
+    ctx.fillStyle = '#1b1e28'; rr(ox - 3, oy - 3, cell * 8 + 6, cell * 8 + 6, 8); ctx.fill();
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+      const X = ox + c * cell, Y = oy + r * cell, lc = this.lastCold >= 0 && c >= this.G.bands[this.lastCold][0] && c <= this.G.bands[this.lastCold][1];   // Q-024 G: the last cold home's columns, faintly
+      ctx.fillStyle = lc ? ((r + c) % 2 ? '#22293a' : '#262e40') : (r + c) % 2 ? '#222634' : '#262a39'; ctx.fillRect(X + 1, Y + 1, cell - 2, cell - 2);
+      const v = an ? an.before[r][c] : g.b[r][c];
+      if (an && an.thaw && an.thaw[c + ',' + r] !== undefined) { drawMelt(X, Y, cell, (t - an.thaw[c + ',' + r]) / 480); continue; }   // Q-021 T
+      if (an && an.times[c + ',' + r] !== undefined) { const k = (t - an.times[c + ',' + r]) / 480;
+        if (k < 0) { this.drawPieceCell(v, X, Y, cell); continue; }
+        if (k < 1) { this.drawPieceCell(v, X, Y, cell, 1 - Math.max(0, k - 0.5) * 2); flame(X + cell / 2, Y + cell * 0.82, cell * 0.66, Math.min(1, k * 5) * (1 - Math.max(0, k - 0.6) / 0.4), c * 3 + r); glow(X + cell / 2, Y + cell / 2, cell, 0.35 * (1 - k)); continue; }
+        if (k < 3) glow(X + cell / 2, Y + cell / 2, cell * 0.5, 0.3 * (1 - k / 3)); continue; }
+      if (v) this.drawPieceCell(v, X, Y, cell);
+    }
+    this.drawDividers();
+    if (this.fx && t < this.fx.until) { const fade = Math.min(1, (this.fx.until - t) / 500);
+      for (const p of this.fx.pins) { if (t < p.t) continue; const X = ox + p.c * cell + cell / 2, Y = oy + p.r * cell + cell / 2, k = reducedMotion() ? 1 : Math.min(1, (t - p.t) / 200);
+        ctx.globalAlpha = fade; ctx.strokeStyle = 'rgba(255,214,120,0.95)'; ctx.lineWidth = Math.max(2, cell * 0.07); ctx.beginPath(); ctx.arc(X, Y, cell * (0.3 + 0.12 * k), 0, 6.283); ctx.stroke();
+        const bx = X - cell * 0.28, by = Y - cell * 0.28, br = cell * 0.2; ctx.fillStyle = '#ffd27a'; ctx.beginPath(); ctx.arc(bx, by, br, 0, 6.283); ctx.fill();
+        ctx.fillStyle = '#2a1606'; ctx.font = '700 ' + Math.round(cell * 0.28) + 'px ' + font(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(p.n), bx, by + 1); ctx.globalAlpha = 1; } }
+    else if (this.fx) this.fx = null;
+    const sn = this.snap();
+    if (sn) { const piece = g.tray[this.drag.i];
+      if (sn.ok) { ctx.fillStyle = 'rgba(255,200,120,0.22)'; piece.cells.forEach(([dx, dy]) => ctx.fillRect(ox + (sn.gx + dx) * cell + 1, oy + (sn.gy + dy) * cell + 1, cell - 2, cell - 2));
+        const tb = g.b.map(r => r.slice()); piece.cells.forEach(([dx, dy]) => tb[sn.gy + dy][sn.gx + dx] = 1);
+        for (let r = 0; r < 8; r++) if (tb[r].every(v => v === 1 || v === 2)) { ctx.fillStyle = 'rgba(255,170,60,0.16)'; ctx.fillRect(ox, oy + r * cell, cell * 8, cell); }
+        for (let c = 0; c < 8; c++) if (tb.every(row => row[c] === 1 || row[c] === 2)) { ctx.fillStyle = 'rgba(255,170,60,0.16)'; ctx.fillRect(ox + c * cell, oy, cell, cell * 8); }
+        if (settings.assist === 'preview') { const key = this.drag.i + ',' + sn.gx + ',' + sn.gy; if (!this.pv || this.pv.key !== key) { const r = FS.preview(g, this.drag.i, sn.gx, sn.gy); this.pv = previewOf(this.G, r, key); }
+          ctx.strokeStyle = 'rgba(255,120,60,0.9)'; ctx.lineWidth = Math.max(1.5, cell * 0.06); this.pv.cells.forEach(([c, r]) => ctx.strokeRect(ox + c * cell + 3, oy + r * cell + 3, cell - 6, cell - 6));
+          ctx.fillStyle = 'rgba(40,120,210,0.38)'; this.pv.thawed.forEach(([c, r]) => ctx.fillRect(ox + c * cell + 2, oy + r * cell + 2, cell - 4, cell - 4));   // snow that would melt: tinted blue, dashed
+          ctx.setLineDash([cell * 0.14, cell * 0.08]); ctx.strokeStyle = '#1f5fa8'; ctx.lineWidth = Math.max(2, cell * 0.08); this.pv.thawed.forEach(([c, r]) => ctx.strokeRect(ox + c * cell + 4, oy + r * cell + 4, cell - 8, cell - 8)); ctx.setLineDash([]); } }
+      piece.cells.forEach(([dx, dy], k) => this.drawPieceCell(piece.pine[k] ? 2 : 1, sn.px + dx * cell, sn.py + dy * cell, cell, 0.95)); }
+    if (!this.frozen) for (let i = 0; i < 3; i++) { const piece = g.tray[i]; if (!piece || (this.drag && this.drag.i === i)) continue; const r = this.trayRect(i), b = this.pieceBox(piece), s = Math.min(cell * 0.66, (r.w - 10) / b.w, (r.h - 10) / b.h);
+      const fits = HF.anyFit(g, piece), x0 = r.x + (r.w - b.w * s) / 2, y0 = r.y + (r.h - b.h * s) / 2;
+      piece.cells.forEach(([dx, dy], k) => this.drawPieceCell(piece.pine[k] ? 2 : 1, x0 + dx * s, y0 + dy * s, s, fits ? 1 : 0.35)); }
+    this.drawTrail(t);
+  },
+  drawTrail(t) { if (!this.trail.length) return; if (reducedMotion()) { this.trail = []; return; } this.trail = this.trail.filter(m => t < m.land + TRAIL.PULSE);
+    for (const m of this.trail) { if (t < m.go || t >= m.land) continue;
+      const k = (t - m.go) / TRAIL.FLY, q = k * k * (3 - 2 * k), sx = ox + m.c * cell + cell / 2, sy = oy + m.r * cell + cell / 2; let x, y, a, r;
+      if (m.home >= 0) { const w = windowCenter(this.street, m.home), cx = sx + (w.x - sx) * 0.2, cy = sy - (sy - w.y) * 0.8;
+        x = (1 - q) * (1 - q) * sx + 2 * (1 - q) * q * cx + q * q * w.x; y = (1 - q) * (1 - q) * sy + 2 * (1 - q) * q * cy + q * q * w.y; a = 0.9 - 0.3 * q; r = cell * (0.075 - 0.025 * q); }
+      else { x = sx; y = sy - cell * 0.7 * q; a = 0.8 * (1 - k); r = cell * 0.06; }   // past the target: rises and fades, warms nothing
+      ctx.globalAlpha = a * 0.35; ctx.fillStyle = '#ffb052'; ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, 6.283); ctx.fill();
+      ctx.globalAlpha = a; ctx.fillStyle = '#ffe1a0'; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.283); ctx.fill(); }
+    ctx.globalAlpha = 1; },
+  drawBanner(t) { const b = this.cap; if (!b) return; if (t >= b.show) { this.cap = null; return; } if (t < b.t0) return;   // Q-024 M (see capStart)
+    const a = Math.min(1, (t - b.t0) / 150) * Math.min(1, (b.show - t) / 250), cx = ox + cell * 4, n = b.detail.length, h = cell * (b.big ? 1.25 : 0.95) + n * cell * 0.5, cy = oy + cell * b.row, w = cell * 7.8, F = font();
+    ctx.globalAlpha = a; ctx.fillStyle = 'rgba(20,12,8,0.86)'; rr(cx - w / 2, cy - h / 2, w, h, cell * 0.28); ctx.fill(); ctx.strokeStyle = b.big ? 'rgba(255,176,82,0.95)' : 'rgba(255,176,82,0.6)'; ctx.lineWidth = 2; ctx.stroke();
+    if (b.big) glow(cx, cy, cell * 3.6, 0.3 * a);
+    const fitText = (txt, px, weight) => { let s = px; ctx.font = weight + ' ' + Math.round(s) + 'px ' + F; while (s > 10 && ctx.measureText(txt).width > w - cell * 0.4) { s -= 1; ctx.font = weight + ' ' + Math.round(s) + 'px ' + F; } };
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; const pop = reducedMotion() ? 1 : 1 + 0.1 * Math.max(0, 1 - (t - b.t0) / 220);
+    const top = cy - h / 2 + cell * (b.big ? 0.62 : 0.48);
+    ctx.fillStyle = '#ffd27a'; fitText(b.head, Math.max(b.big ? 17 : 14, cell * (b.big ? 0.7 : 0.5)) * pop, '700'); ctx.fillText(b.head, cx, top);
+    b.detail.forEach((d, i) => { ctx.fillStyle = i === n - 1 ? '#ffe1a0' : '#f3e6d4'; fitText(d, Math.max(12, cell * 0.34), '600'); ctx.fillText(d, cx, top + cell * (b.big ? 0.66 : 0.52) + i * cell * 0.46); });
+    ctx.globalAlpha = 1; },
+  // the victory moment: windows blaze, chimneys smoke, the warm chord, one line; two seconds or a tap; the same in both arms
+  // Q-024 H: with the lane's before-and-after shown, no second box (polish-2: this note sits on its own line; in polish-1 it commented out
+  // the declarations below, so the review-only scene-off victory threw 'a is not defined')
+  drawVictory(t) { const v = this.victory; if (!v || this.card) return; const age = t - v.t0, a = Math.min(1, age / 200);
+    const cx = ox + cell * 4, cy = oy + cell * 3.2, w = cell * 7.2, h = cell * 1.9; ctx.globalAlpha = a;
+    ctx.fillStyle = 'rgba(20,12,8,0.84)'; rr(cx - w / 2, cy - h / 2, w, h, cell * 0.3); ctx.fill(); ctx.strokeStyle = 'rgba(255,196,106,0.95)'; ctx.lineWidth = 2; ctx.stroke(); glow(cx, cy, cell * 4.2, 0.4 * a);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#ffd27a'; ctx.font = '700 ' + Math.round(cell * 0.62 * (reducedMotion() ? 1 : 1 + 0.08 * Math.max(0, 1 - age / 260))) + 'px ' + font(); ctx.fillText('The street is warm', cx, cy); ctx.globalAlpha = 1; },
+};
+
+// ---------------------------------------------------------------- frame loop
+let lastT = 0; const FRAMES = [];
+function frame() {
+  requestAnimationFrame(frame);
+  if ($('play').hidden || !game) return;
+  const t = now(); if (lastT) FRAMES.push(t - lastT); if (FRAMES.length > 3000) FRAMES.shift(); lastT = t;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, CW, CH);
+  ctx.fillStyle = '#14141a'; ctx.fillRect(0, 0, CW, CH);
+  const still = reducedMotion(); if (still) { shake.until = 0; particles = []; }   // Q-024 polish-2 (R1): no shake or sparks with reduced motion
+  ctx.save(); if (t < shake.until) { const k = (shake.until - t) / 200; ctx.translate((Math.random() - 0.5) * shake.amp * k, (Math.random() - 0.5) * shake.amp * k); }
+  game.draw(t);
+  streaks = streaks.filter(st => t - st.t0 < st.dur + 200);
+  for (const st of streaks) { if (t < st.t0) continue; const k = still ? 1 : Math.min(1, (t - st.t0) / st.dur), tail = still ? 0 : Math.max(0, k - 0.5), fade = t - st.t0 > st.dur ? 1 - (t - st.t0 - st.dur) / 200 : 1;
+    const hx = st.ax + (st.bx - st.ax) * k, hy = st.ay + (st.by - st.ay) * k, tx = st.ax + (st.bx - st.ax) * tail, ty = st.ay + (st.by - st.ay) * tail;
+    ctx.strokeStyle = 'rgba(255,215,120,' + 0.9 * fade + ')'; ctx.lineWidth = cell * 0.16; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(hx, hy); ctx.stroke(); }
+  drawParticles(t);
+  game.drawBanner(t); game.drawVictory(t);
+  ctx.restore();
+}
+
+// ---------------------------------------------------------------- input
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('pointerdown', (e) => { audio(); if (!game) return; try { cv.setPointerCapture(e.pointerId); } catch (x) {} game.down(toLocal(e)); });
+cv.addEventListener('pointermove', (e) => { if (game) game.move(toLocal(e)); });
+cv.addEventListener('pointerup', (e) => { if (game) game.up(toLocal(e)); });
+cv.addEventListener('pointercancel', () => { if (game && game.drag) { game.drag = null; game.pv = null; } });
+
+// ---------------------------------------------------------------- Q-021: The Cold Lane, warmed (replaces the Q-019 chapter flow)
+// Seven streets, played in order and replayable once warm. Each street has three checked setups (A, B, C: authored starting sheds
+// and seeds whose first decisions differ); a first visit plays A, "Fresh setup" moves to the next one, "Same setup" repeats the setup
+// just played exactly. What this browser keeps, under this build's own keys (never the Q-019 chapter's): the streets that are warm and
+// their records, the setup last played on each street, and each unfinished run (its setup, seed, layout, rules and placements, plus a
+// snapshot of where it stood). An unfinished run is resumed by replaying its own placements on its own setup and is refused, never
+// rerolled, if the result differs from the snapshot. Records: fewest placements and biggest single fire, each from one real run.
+// Review mode (?review) opens every street and every setup, keeps its own separate storage and offers the internal switches (pooled
+// comparison, setups, scene, preview, resume). No gameplay results are uploaded: progress stays in this browser (the page may load its
+// fonts from Google Fonts).
+// fs-q021-lane-2 (Oct 26, corrections after ChatGPT's Q-021 review, R1/R2): unfinished runs have their own save state, separate from
+// progress, preferences and the storage probe, and every screen reports it truthfully (saved; an older checkpoint saved with newer
+// placements only in this page; not saved; or an earlier run that could not be set aside). Runs that are not yet saved are written again
+// whenever the lane or pause menu is shown, the page is hidden, or every few seconds, with readback. An attempt that is set aside (fresh
+// or same restart, out of room, a refused resume) or won is retired in both keys: removed from the runs key and listed in the progress
+// key; on load a saved run whose attempt is retired or won is never offered. Only if both keys refuse every write can it survive, and
+// then the player is told it may be offered again.
+const LEVELS = DATA.levels, LEVEL = {}; LEVELS.forEach((L, i) => { L.index = i; L.homes = L.bands.length; LEVEL[L.id] = L; });
+const REVIEW =  false;
+const FEAT =  { goal: 'spatial', setups: true, scene: true, preview: true, resume: true };
+const RULES_ID = HF.RULES + '/' + FEAT.goal;          // what records and runs were played under
+const SAVES = FEAT.goal === 'spatial';               // the pooled comparison is internal: it keeps nothing
+const SUFFIX = REVIEW ? '_review' : '';
+const LS_KEY = 'fsq024_polish2_progress_v1' + SUFFIX, LS_RUNS = 'fsq024_polish2_runs_v1' + SUFFIX, LS_PREFS = 'fsq024_polish2_prefs_v1' + SUFFIX;   // Q-024: its own keys; nothing older is read or changed
+const HOME_S = { 2: 1.4, 3: 1.35, 4: 1.2 }, ROOFS = ['#c8d6e6', '#b9c9a8', '#d9c7b0', '#c9b8d6'];
+LEVELS.forEach(L => { STREETS[L.id] = { homes: L.bands.map(([a, b], k) => ({ x: (a + b + 1) / 2, s: HOME_S[L.homes], roof: ROOFS[k] })), trees: [] }; });
+const FIRST_HINT = 'Full rows and full columns burn, edge to edge. Fire warms the home above it.';   // Q-024 G: First Light's hint, rows AND columns
+const goalText = (n) => n === 2 ? 'Warm both homes' : 'Warm all ' + n + ' homes';
+const layoutOf = (V) => V.layout ? V.layout.join('/') : 'open';
+const variantByTag = (L, tag) => L.variants.find(V => V.tag === tag) || null;
+
+// ---- storage: every write is read back; "persisted" is what this browser really holds
+function probeStorage() { try { const k = 'fsq024_probe'; localStorage.setItem(k, '1'); const ok = localStorage.getItem(k) === '1'; localStorage.removeItem(k); return ok; } catch (e) { return false; } }
+let storageOk = probeStorage(), lastSaveOk = null, resetNote = '', laneNote = '';
+function readKey(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
+// fs-q021-lane-2: whether a key can be read at all (unavailable storage keeps the last state known to be saved, rather than "nothing")
+function canRead(k) { try { localStorage.getItem(k); return true; } catch (e) { return false; } }
+function writeKey(k, s) { try { localStorage.setItem(k, s); return localStorage.getItem(k) === s; } catch (e) { return false; } }
+const emptyProgress = () => ({ v: 1, done: {}, seen: {}, setups: {}, retired: {} });
+const okRec = (r, f) => r && typeof r === 'object' && r[f] > 0 && typeof r.tag === 'string' && typeof r.rules === 'string';
+function normalise(v) { const out = emptyProgress(); if (!v || v.v !== 1 || typeof v.done !== 'object' || !v.done) return out;
+  for (const id of Object.keys(v.done)) { const d = v.done[id]; if (!LEVEL[id] || !d || typeof d !== 'object' || !okRec(d.fewest, 'placements')) continue;
+    out.done[id] = { first: d.first || null, last: d.last || null, wins: d.wins > 0 ? d.wins : 1, fewest: d.fewest, biggest: okRec(d.biggest, 'fire') ? d.biggest : null, won: Array.isArray(d.won) ? d.won.slice(-20) : [] };
+    if (v.seen && v.seen[id]) out.seen[id] = true; }
+  if (v.setups && typeof v.setups === 'object') for (const id of Object.keys(v.setups)) if (LEVEL[id] && variantByTag(LEVEL[id], v.setups[id])) out.setups[id] = v.setups[id];
+  if (v.retired && typeof v.retired === 'object') for (const id of Object.keys(v.retired)) if (LEVEL[id] && Array.isArray(v.retired[id])) out.retired[id] = v.retired[id].filter(a => typeof a === 'string').slice(-12);
+  return out; }
+const readStored = () => normalise(readKey(LS_KEY));
+let persisted = readStored(), P = JSON.parse(JSON.stringify(persisted));
+const dirty = () => JSON.stringify(P) !== JSON.stringify(persisted);
+function writeProgress() { if (!SAVES) return (lastSaveOk = false); const s = JSON.stringify(P), ok = writeKey(LS_KEY, s);
+  if (ok) { persisted = JSON.parse(s); storageOk = true; } else if (canRead(LS_KEY)) persisted = readStored(); return (lastSaveOk = ok); }
+// unfinished runs, one per street. RUNS = this page's committed run per street; persistedRuns = what the runs key really holds.
+const readRuns = () => { const v = readKey(LS_RUNS); return v && v.v === 1 && v.runs && typeof v.runs === 'object' ? v.runs : {}; };
+// an attempt is retired when the progress record names it (set aside, or won): such a saved run is never offered again
+const retiredIn = (prog, id, attempt) => !!attempt && ((prog.retired[id] || []).includes(attempt) || !!(prog.done[id] && prog.done[id].won.includes(attempt)));
+function liveRuns(stored, prog) { const out = {}; for (const id of Object.keys(stored)) { const r = stored[id]; if (LEVEL[id] && r && typeof r === 'object' && !retiredIn(prog, id, r.attempt)) out[id] = r; } return out; }
+let persistedRuns = readRuns(), RUNS = JSON.parse(JSON.stringify(liveRuns(persistedRuns, persisted)));
+const runsDirty = () => JSON.stringify(RUNS) !== JSON.stringify(persistedRuns);
+function writeRuns() { if (!SAVES || !FEAT.resume) return false; const s = JSON.stringify({ v: 1, runs: RUNS }), ok = writeKey(LS_RUNS, s);
+  if (ok) persistedRuns = JSON.parse(s).runs; else if (canRead(LS_RUNS)) persistedRuns = readRuns(); return ok; }   // after a failure: whatever is really there now (or, if unreadable, the last state known to be saved)
+if (SAVES && FEAT.resume && runsDirty()) writeRuns();   // tidy runs already retired in the progress record (if this fails they are still never offered)
+// the save state of a street's unfinished run, from what this page holds and what this browser really holds
+function runState(id) { const m = RUNS[id], d = persistedRuns[id], dLive = d && !retiredIn(persisted, id, d.attempt);
+  if (m && d && d.attempt === m.attempt) return d.savedAt === m.savedAt && d.moves.length === m.moves.length ? { kind: 'saved', now: m.moves.length } : { kind: 'older', saved: d.moves.length, now: m.moves.length, run: m };
+  if (m) return { kind: 'unsaved', now: m.moves.length, run: m, old: dLive ? d : null };
+  if (dLive) return { kind: 'stale', old: d };   // set aside in this page, but still in the runs key and not retired in the progress key
+  return { kind: 'none' }; }
+// set aside a street's run(s): remove from the runs key and record the attempt(s) as retired in the progress key; returns true when no
+// earlier run can come back after this page closes
+function retireRun(id, extra) { const ids = [RUNS[id] && RUNS[id].attempt, persistedRuns[id] && persistedRuns[id].attempt, extra].filter(Boolean);
+  if (!ids.length) return true;
+  P.retired[id] = [...new Set((P.retired[id] || []).concat(ids))].slice(-12); delete RUNS[id];
+  if (SAVES) { writeProgress(); writeRuns(); }
+  return runState(id).kind !== 'stale'; }
+// write again whatever is not yet saved (progress, then runs), with readback; safe to call at any time: RUNS only ever holds committed snapshots
+function syncSaves() { if (!SAVES) return; if (dirty()) writeProgress(); if (FEAT.resume && runsDirty()) writeRuns(); }
+const oldRunText = (L, d) => 'an earlier run on ' + L.name + ' (setup ' + d.tag + ', ' + d.moves.length + ' placement' + (d.moves.length === 1 ? '' : 's') + ') could not be set aside in this browser and may be offered again after this page is closed';
+let PREFS = (() => { const v = readKey(LS_PREFS); return { preview: !!(v && v.preview === true), sound: !(v && v.sound === false) }; })();
+const settings = { assist: FEAT.preview && PREFS.preview ? 'preview' : 'off' };   // the burn-outcome preview starts off
+function setPreview(on) { PREFS.preview = !!on; settings.assist = FEAT.preview && on ? 'preview' : 'off'; if (SAVES) writeKey(LS_PREFS, JSON.stringify(PREFS)); if (game) game.pv = null; renderPvBtn(); }
+
+const nameList = (Ls) => { const n = Ls.map(L => L.name); return n.length < 2 ? n.join('') : n.slice(0, -1).join(', ') + ' and ' + n[n.length - 1]; };
+function saveState() { const lost = LEVELS.filter(L => P.done[L.id] && !persisted.done[L.id]), kept = LEVELS.filter(L => persisted.done[L.id]).length;
+  return { lost, kept, behind: !lost.length && dirty() }; }
+// one sentence per unfinished street whose save state is not plain "saved" (fs-q021-lane-2: run saving is reported on its own)
+function runNote(L) { const s = runState(L.id), pl = (n) => n + ' placement' + (n === 1 ? '' : 's');
+  if (s.kind === 'older') return L.name + ': this browser holds an earlier save of your unfinished run (' + pl(s.saved) + '); your latest ' + pl(s.now) + ' are kept only while this page stays open.';
+  if (s.kind === 'unsaved') return L.name + ': your unfinished run (' + pl(s.now) + ') is not saved in this browser; it can be resumed only while this page stays open.' + (s.old ? ' Also, ' + oldRunText(L, s.old) + '.' : '');
+  if (s.kind === 'stale') return L.name + ': ' + oldRunText(L, s.old).replace(/^an/, 'An') + '.';
+  return ''; }
+function laneSaveNotes() { if (!SAVES) return { warn: true, text: 'Pooled comparison: nothing is saved in this mode.' };
+  const st = saveState(), out = [];
+  if (st.lost.length) out.push('Not saved in this browser: ' + nameList(st.lost) + '. ' + (st.lost.length === 1 ? 'It stays' : 'They stay') + ' warm only until this page is closed' + (st.kept ? '; streets saved earlier stay saved.' : '.'));
+  else if (st.behind) out.push('Your latest records or choices could not be saved in this browser; the warm streets themselves are saved.');
+  const runs = FEAT.resume ? LEVELS.map(runNote).filter(Boolean) : [];
+  out.push(...runs);
+  if (out.length) return { warn: true, text: out.join(' ') };
+  if (!storageOk && !Object.keys(persisted.done).length && !Object.keys(persistedRuns).length) return { warn: true, text: 'This browser is not saving progress: finished streets and unfinished runs will be forgotten when you close it.' };
+  const anyRun = FEAT.resume && LEVELS.some(L => runState(L.id).kind === 'saved');
+  return { warn: false, text: (anyRun ? 'Warm streets, records and unfinished streets are saved in this browser' : 'Warm streets and records are saved in this browser') + ', on this device only: they are not stored online, so another browser or device starts from the beginning.' }; }
+const isDone = (id) => !!P.done[id];
+const unlocked = (L) => REVIEW || L.index === 0 || isDone(LEVELS[L.index - 1].id);
+const allDone = () => LEVELS.every(L => isDone(L.id));
+const nextOpen = () => LEVELS.find(L => !isDone(L.id) && unlocked(L)) || null;
+// setups: a first visit plays A; "Fresh setup" is the next one after the setup last played; "Same setup" repeats it
+function freshTag(L, from) { if (!FEAT.setups) return 'A'; const last = from || P.setups[L.id]; if (!last) return L.variants[0].tag; const i = L.variants.findIndex(V => V.tag === last); return L.variants[(i + 1) % L.variants.length].tag; }
+const sameTag = (L) => FEAT.setups ? (P.setups[L.id] || L.variants[0].tag) : 'A';
+const newAttempt = () => 'r' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
+const latestRun = () => LEVELS.filter(L => RUNS[L.id] && unlocked(L)).sort((a, b) => RUNS[b.id].savedAt - RUNS[a.id].savedAt)[0] || null;
+
+// ---- records: each comes whole from one real run (its placements, score, Firestorms, biggest fire, setup and rules)
+function recordWin(id, info) { const prev = P.done[id]; if (prev && prev.won.includes(info.attempt)) return false;   // never the same run twice
+  const fewer = !prev || info.placements < prev.fewest.placements || (info.placements === prev.fewest.placements && info.score > prev.fewest.score);
+  const bigger = !prev || !prev.biggest || info.fire > prev.biggest.fire || (info.fire === prev.biggest.fire && info.placements < prev.biggest.placements);
+  P.done[id] = { first: prev ? prev.first : info.at, last: info.at, wins: (prev ? prev.wins : 0) + 1, fewest: fewer ? Object.assign({}, info) : prev.fewest, biggest: bigger ? Object.assign({}, info) : prev.biggest,
+    won: (prev ? prev.won : []).concat([info.attempt]).slice(-20) };
+  return true; }
+const setupName = (r) => 'setup ' + r.tag + (r.rules !== RULES_ID ? ', other rules' : '');
+function recordLines(d) { return ['Fewest placements: ' + d.fewest.placements + ' (' + setupName(d.fewest) + (d.fewest.fs ? ', ' + d.fewest.fs + ' Firestorm' + (d.fewest.fs === 1 ? '' : 's') : '') + ')',
+  d.biggest ? 'Biggest fire: ' + d.biggest.fire + ' cells at once (' + setupName(d.biggest) + ', a ' + d.biggest.placements + '-placement run)' : null].filter(Boolean); }
+
+// ---- screens
+function show(id) { ['lane', 'play', 'menu', 'ending'].forEach(s => $(s).hidden = s !== id); document.body.style.height = id === 'play' ? '100%' : ''; if (id !== 'play') scrollTo(0, 0); }
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function housesSvg(n, lit) { const w = 26, gap = 8, W = n * w + (n - 1) * gap;
+  let s = '<svg class="houses" viewBox="0 0 ' + W + ' 24" width="' + W + '" height="24" aria-hidden="true">';
+  for (let k = 0; k < n; k++) { const x = k * (w + gap), r = ROOFS[k];
+    s += '<polygon points="' + (x + 1) + ',11 ' + (x + w / 2) + ',2 ' + (x + w - 1) + ',11" fill="' + r + '"/>' + '<rect x="' + (x + 4) + '" y="11" width="' + (w - 8) + '" height="12" fill="#767a8c"/>' +
+      '<rect x="' + (x + w / 2 - 3.5) + '" y="14" width="7" height="6" fill="' + (lit ? '#ffc46a' : '#151821') + '" stroke="' + (lit ? '#ffc46a' : '#b9def8') + '" stroke-width="1"/>' + (lit ? '<circle cx="' + (x + w / 2) + '" cy="17" r="9" fill="rgba(255,170,70,.18)"/>' : ''); }
+  return s + '</svg>'; }
+// a truthful glimpse of a setup: its real starting shed (logs, pinecones, snow) under its homes' bands and targets
+function miniBoard(L, V) { const c = 9, W = c * 8, top = 12; let s = '<svg class="mini" viewBox="0 0 ' + W + ' ' + (W + top) + '" width="' + W + '" height="' + (W + top) + '" role="img" aria-label="' + esc(L.name + ', setup ' + V.tag + ': its starting shed') + '">';
+  L.bands.forEach(([a, b], k) => { s += '<rect x="' + (a * c + 1) + '" y="1" width="' + ((b - a + 1) * c - 2) + '" height="' + (top - 3) + '" rx="2" fill="#1b1e28" stroke="' + ROOFS[k] + '"/><text x="' + ((a + b + 1) * c / 2) + '" y="' + (top - 4) + '" text-anchor="middle">' + L.targets[k] + '</text>'; });
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) { const ch = V.layout ? V.layout[y][x] : '.', X = x * c, Y = top + y * c;
+    s += '<rect x="' + (X + 0.5) + '" y="' + (Y + 0.5) + '" width="' + (c - 1) + '" height="' + (c - 1) + '" rx="1.5" fill="' + (ch === 'L' ? '#a8713f' : ch === 'P' ? '#7d4a24' : ch === 'S' ? '#e3ecf5' : (x + y) % 2 ? '#222634' : '#262a39') + '"/>' + (ch === 'P' ? '<circle cx="' + (X + c / 2) + '" cy="' + (Y + c / 2) + '" r="2.4" fill="#c98a4c"/>' : ''); }
+  L.bands.slice(1).forEach(([a]) => { s += '<line x1="' + a * c + '" y1="' + top + '" x2="' + a * c + '" y2="' + (top + 8 * c) + '" stroke="rgba(185,222,248,.6)" stroke-dasharray="2 2"/>'; });
+  return s + '</svg>'; }
+
+// ---- the lane scene: one small place whose parts come back to life street by street (persistent: it is drawn from the warm streets)
+const SITE_TEXT = { c1: 'The first two cottages and the lamp at the end of the lane are lit.', c2: 'Lanterns glow along the ridge, and the snow has slid from the pines.',
+  c3: 'The stream at the crossing runs again, and the bridge lantern is lit.', c4: 'The woodshed stands open and stacked, and the home beside it is warm.',
+  c5: 'Every window along the long street is lit.', c6: 'The drift that blocked the lane has melted; the path is clear again.', c7: 'The mill turns again: its wheel is free of ice and its windows are lit.' };
+function house(dx, w, h, roof) { const top = -h, peak = -h - w * 0.42;
+  return '<g transform="translate(' + dx + ' 0)"><rect x="' + (w * 0.16) + '" y="' + (peak + w * 0.08) + '" width="' + (w * 0.14) + '" height="' + (w * 0.3) + '" fill="#5a6172"/>' +
+    '<g class="smoke"><circle cx="' + (w * 0.23) + '" cy="' + (peak - 2) + '" r="2"/><circle cx="' + (w * 0.3) + '" cy="' + (peak - 7) + '" r="2.6"/><circle cx="' + (w * 0.2) + '" cy="' + (peak - 13) + '" r="3"/></g>' +
+    '<polygon points="' + (-w / 2 - 2) + ',' + top + ' 0,' + peak + ' ' + (w / 2 + 2) + ',' + top + '" fill="' + roof + '"/>' +
+    '<polygon class="snowcap" points="' + (-w / 2 - 2) + ',' + top + ' 0,' + peak + ' ' + (w / 2 + 2) + ',' + top + ' ' + (w / 2 - 1) + ',' + (top - 1.5) + ' 0,' + (peak + 3) + ' ' + (-w / 2 + 1) + ',' + (top - 1.5) + '" fill="#eef4f9"/>' +
+    '<rect x="' + (-w / 2) + '" y="' + top + '" width="' + w + '" height="' + h + '" fill="#767a8c"/><circle class="glow" cx="0" cy="' + (top + h * 0.45) + '" r="' + (w * 0.8) + '" fill="url(#lglow)"/>' +
+    '<rect class="win" x="' + (-w * 0.15) + '" y="' + (top + h * 0.25) + '" width="' + (w * 0.3) + '" height="' + (h * 0.4) + '"/></g>'; }
+function pine(dx, h) { return '<g transform="translate(' + dx + ' 0)"><rect x="-1.2" y="-3" width="2.4" height="3" fill="#4a3a2c"/>' +
+  [0, 1, 2].map(k => { const y = -3 - k * h * 0.26, w = h * (0.34 - k * 0.07); return '<polygon points="' + (-w) + ',' + y + ' 0,' + (y - h * 0.38) + ' ' + w + ',' + y + '" fill="#2f4a3c"/><polygon class="snowcap" points="' + (-w * 0.55) + ',' + (y - h * 0.16) + ' 0,' + (y - h * 0.38) + ' ' + (w * 0.55) + ',' + (y - h * 0.16) + '" fill="#eef4f9"/>'; }).join('') + '</g>'; }
+const lamp = (dx, h) => '<line x1="' + dx + '" y1="0" x2="' + dx + '" y2="' + (-h) + '" stroke="#5a6172" stroke-width="1.6"/><circle class="glow" cx="' + dx + '" cy="' + (-h - 1) + '" r="10" fill="url(#lglow)"/><circle class="lamp" cx="' + dx + '" cy="' + (-h - 1) + '" r="2.6"/>';
+const SITES = {
+  c1: { x: 44, y: 184, art: () => house(-14, 20, 14, ROOFS[0]) + house(11, 18, 13, ROOFS[1]) + lamp(30, 24) },
+  c2: { x: 118, y: 184, art: () => pine(-17, 26) + pine(0, 34) + pine(17, 24) + '<path d="M-24 -14 Q-9 -6 0 -16 Q9 -6 24 -13" fill="none" stroke="#3a4152" stroke-width="1"/>' +
+    [[-18, -11], [-10, -9], [-3, -13], [4, -12], [11, -9], [19, -11]].map(([x, y]) => '<circle class="glow" cx="' + x + '" cy="' + y + '" r="5" fill="url(#lglow)"/><circle class="bulb" cx="' + x + '" cy="' + y + '" r="1.6"/>').join('') },
+  c3: { x: 192, y: 184, art: () => '<path class="ice" d="M-9 -30 Q-3 -14 -8 0 L8 0 Q12 -14 6 -30 Z" fill="#cfe0ee"/><path class="water" d="M-9 -30 Q-3 -14 -8 0 L8 0 Q12 -14 6 -30 Z" fill="#3f6f99"/>' +
+    '<path class="water" d="M-5 -24 q2 2 4 0 M-4 -12 q2 2 4 0 M-3 -4 q2 2 4 0" stroke="#9fd3e6" stroke-width="0.8" fill="none"/>' +
+    '<path d="M-15 -2 Q0 -11 15 -2" stroke="#8a5a33" stroke-width="3" fill="none"/><path d="M-13 -6 Q0 -15 13 -6" stroke="#6b4426" stroke-width="1" fill="none"/>' +
+    '<line x1="24" y1="0" x2="24" y2="-20" stroke="#6b4426" stroke-width="1.6"/><rect x="16" y="-19" width="13" height="4" fill="#8a5a33"/><rect x="20" y="-13" width="12" height="4" fill="#8a5a33"/>' + lamp(-24, 18) },
+  c4: { x: 266, y: 184, art: () => '<polygon points="-30,-17 -2,-21 -2,-19 -30,-15" fill="#5c3b1c"/><rect x="-28" y="-16" width="24" height="16" fill="#3b2a1c"/>' +
+    '<g class="logs">' + [[-24, -3], [-18, -3], [-12, -3], [-8, -3], [-21, -8], [-15, -8], [-9, -8], [-18, -13], [-12, -13]].map(([x, y]) => '<circle cx="' + x + '" cy="' + y + '" r="2.6" fill="#a8713f" stroke="#4c2f19" stroke-width=".6"/>').join('') + '</g>' +
+    '<rect class="door" x="-28" y="-16" width="24" height="16" fill="#4a3a2c"/><path class="drift" d="M-31 0 Q-24 -9 -14 -6 Q-6 -10 -1 0 Z" fill="#e3ecf5"/>' + house(16, 20, 15, ROOFS[2]) },
+  c5: { x: 298, y: 120, art: () => house(-25, 13, 10, ROOFS[0]) + house(-8.5, 13, 10, ROOFS[1]) + house(8.5, 13, 10, ROOFS[2]) + house(25, 13, 10, ROOFS[3]) },
+  c6: { x: 192, y: 120, art: () => '<g class="steps">' + [-22, -12, -2, 8, 18].map(x => '<ellipse cx="' + x + '" cy="-1" rx="3" ry="1.2" fill="#5a6172"/>').join('') + '</g>' +
+    '<path class="drift" d="M-32 1 Q-24 -15 -6 -12 Q10 -19 32 1 Z" fill="#e3ecf5"/><path class="drift" d="M-20 -9 Q-8 -14 4 -11" stroke="#bcd2e4" stroke-width="1" fill="none"/>' + lamp(30, 18) },
+  c7: { x: 74, y: 120, art: () => '<ellipse class="ice" cx="22" cy="2" rx="17" ry="4" fill="#cfe0ee"/><ellipse class="water" cx="22" cy="2" rx="17" ry="4" fill="#3f6f99"/>' +
+    '<rect x="-30" y="-32" width="34" height="32" fill="#6d6f7d"/><polygon points="-34,-32 -13,-48 8,-32" fill="#9a8f86"/><polygon class="snowcap" points="-34,-32 -13,-48 8,-32 5,-33.5 -13,-45 -31,-33.5" fill="#eef4f9"/>' +
+    '<line class="flag" x1="-13" y1="-48" x2="-13" y2="-58" stroke="#5a6172" stroke-width="1.2"/><polygon class="flag" points="-13,-58 -4,-55 -13,-52" fill="#ffb052"/>' +
+    '<circle class="glow" cx="-13" cy="-16" r="22" fill="url(#lglow)"/><rect class="win" x="-24" y="-24" width="6" height="7"/><rect class="win" x="-9" y="-24" width="6" height="7"/><rect class="win" x="-17" y="-12" width="7" height="12"/>' +
+    '<g class="wheel"><circle cx="18" cy="-12" r="12" fill="none" stroke="#8a5a33" stroke-width="2.4"/>' + [0, 1, 2, 3].map(k => { const a = k * Math.PI / 4; return '<line x1="' + (18 + 12 * Math.cos(a)) + '" y1="' + (-12 + 12 * Math.sin(a)) + '" x2="' + (18 - 12 * Math.cos(a)) + '" y2="' + (-12 - 12 * Math.sin(a)) + '" stroke="#6b4426" stroke-width="1.4"/>'; }).join('') + '</g>' +
+    '<g class="icicles">' + [10, 15, 20, 25].map(x => '<polygon points="' + (x - 1.4) + ',-1 ' + (x + 1.4) + ',-1 ' + x + ',5" fill="#dff0fb"/>').join('') + '<path d="M6 -14 Q18 -30 30 -14" stroke="#dff0fb" stroke-width="2" fill="none"/></g>' },
+};
+function sceneSvg(warm, o) { o = o || {};
+  const stars = [[22, 18], [64, 30], [101, 12], [150, 26], [212, 14], [246, 34], [288, 20], [331, 12], [348, 40], [176, 44]].map(([x, y]) => '<circle cx="' + x + '" cy="' + y + '" r=".9" fill="#dfe8f2" opacity=".7"/>').join('');
+  let s = '<svg class="lane-scene' + (o.instant ? ' instant' : '') + '" viewBox="' + (o.view || '0 0 360 210') + '" role="img" aria-label="' + esc(sceneLabel(warm)) + '"><defs><linearGradient id="lsky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0d1119"/><stop offset="1" stop-color="#1c2333"/></linearGradient>' +
+    '<radialGradient id="lglow"><stop offset="0" stop-color="#ffb052" stop-opacity=".55"/><stop offset="1" stop-color="#ffb052" stop-opacity="0"/></radialGradient></defs>' +
+    '<rect width="360" height="210" fill="url(#lsky)"/>' + stars + '<circle cx="318" cy="34" r="9" fill="#e8eef5" opacity=".85"/><circle cx="322" cy="31" r="8" fill="#141a26"/>' +
+    '<path d="M0 104 Q60 88 130 100 Q210 112 280 96 Q330 86 360 98 L360 210 L0 210 Z" fill="#232a39"/><path d="M0 150 Q90 140 180 152 Q270 162 360 148 L360 210 L0 210 Z" fill="#283041"/>' +
+    '<path d="M8 190 L300 190 Q346 190 346 158 Q346 126 300 126 L40 126" fill="none" stroke="#3a4357" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>';
+  LEVELS.forEach(L => { const st = SITES[L.id]; if (!st) return; const on = warm.has(L.id);
+    s += '<g class="site ' + (on ? 'warm' : 'cold') + (o.next === L.id ? ' next' : '') + (o.focus === L.id ? ' focus' : '') + '" data-site="' + L.id + '" transform="translate(' + st.x + ' ' + st.y + ')"><ellipse class="ring" cx="0" cy="-10" rx="36" ry="26"/>' + st.art() +
+      '<g class="pin" transform="translate(0 12)"><circle r="6"/><text y="2.8" text-anchor="middle">' + (L.index + 1) + '</text></g></g>'; });
+  return s + '</svg>'; }
+function sceneLabel(warm) { const w = LEVELS.filter(L => warm.has(L.id)); return 'The lane: ' + (w.length ? w.length + ' of ' + LEVELS.length + ' places restored (' + nameList(w) + ')' : 'every place is still cold') + '.'; }
+const warmSet = () => new Set(LEVELS.filter(L => isDone(L.id)).map(L => L.id));
+let sceneView = 'played';   // review mode can show the lane cold or fully warm without touching any progress
+function sceneWarm() { return sceneView === 'cold' ? new Set() : sceneView === 'warm' ? new Set(LEVELS.map(L => L.id)) : warmSet(); }
+// the before-and-after for a street that has just become warm: the place as it was, then as it is now, and what comes next. A tap skips it.
+let revealTok = 0;
+function glimpseHtml(nx) { if (!nx) return '<p class="glimpse">' + (allDone() ? 'Every street on the lane is warm.' : 'This is the last street on the lane.') + '</p>';
+  const V = RUNS[nx.id] ? variantByTag(nx, RUNS[nx.id].tag) : variantByTag(nx, P.setups[nx.id] ? sameTag(nx) : nx.variants[0].tag);
+  return '<div class="glimpse">' + miniBoard(nx, V) + '<p><b>Next: ' + esc(nx.name) + '.</b> ' + esc(nx.what) + (V.layout && V.layout.join('').includes('S') ? ' Snow lies in this shed.' : '') + ' Its homes need ' + nx.targets.join(', ') + ' warmth.</p></div>'; }
+function playReveal(id, opts) { opts = opts || {}; const L = LEVEL[id], tok = ++revealTok, box = $('reveal'), rm = reducedMotion(); const before = sceneWarm(); before.delete(id);
+  const nx = opts.next !== undefined ? opts.next : nextOpen();
+  $('scene').innerHTML = sceneSvg(rm ? sceneWarm() : before, { next: nx && nx.id, instant: rm });
+  box.hidden = false; $('reveal-text').innerHTML = '<b>' + esc(L.name) + ' is warm.</b> ' + esc(SITE_TEXT[id] || '');
+  $('reveal-next').innerHTML = glimpseHtml(nx); $('reveal-stage').textContent = rm ? 'Now' : 'Before';
+  const finish = () => { if (tok !== revealTok) return; const g = document.querySelector('#scene [data-site="' + id + '"]'); if (g) { g.classList.remove('cold'); g.classList.add('warm'); }
+    $('reveal-stage').textContent = 'Now'; if (!opts.review && SAVES) { P.seen[id] = true; writeProgress(); } else if (!opts.review) P.seen[id] = true; };
+  if (rm) finish(); else setTimeout(finish, FAST() ? 0 : 900);
+  $('reveal-skip').onclick = () => { const s = document.querySelector('#scene svg'); if (s) s.classList.add('instant'); finish(); $('reveal-skip').hidden = true; };
+  $('reveal-skip').hidden = rm; }
+
+// ---- the lane
+function actionsFor(L) { const run = FEAT.resume ? RUNS[L.id] : null, played = !!P.setups[L.id], b = (act, tag, label, cls) => '<button type="button" class="' + (cls || 'quiet') + '" data-id="' + L.id + '" data-act="' + act + '"' + (tag ? ' data-tag="' + tag + '"' : '') + '>' + esc(label) + '</button>';
+  if (!unlocked(L)) return '';
+  let h = '';
+  if (run) h += b('resume', run.tag, 'Resume (setup ' + run.tag + ', ' + run.moves.length + ' placement' + (run.moves.length === 1 ? '' : 's') + ' in)', 'go') + b('play', freshTag(L, run.tag), FEAT.setups ? 'Start over: fresh setup' : 'Start over');
+  else if (!played) h += b('play', L.variants[0].tag, 'Play', 'go');
+  else h += FEAT.setups ? b('play', freshTag(L), 'Fresh setup', 'go') + b('play', sameTag(L), 'Same setup (' + sameTag(L) + ')') : b('play', 'A', 'Play again', 'go');
+    return '<div class="st-actions">' + h + '</div>'; }
+function renderLaneSave() { const note = laneSaveNotes(); $('lane-save').textContent = note.text; $('lane-save').className = 'lane-save' + (note.warn ? ' warn' : '');
+  document.querySelectorAll('#streets [data-runstate]').forEach(e => { e.textContent = runStateLabel(e.dataset.runstate); }); }
+const runStateLabel = (id) => { const k = runState(id).kind; return (isDone(id) ? 'Warm · ' : '') + (k === 'saved' ? 'Unfinished run saved' : k === 'older' ? 'Unfinished · latest placements not saved' : 'Unfinished · not saved in this browser'); };
+function renderLane() {
+  syncSaves();   // whatever is not yet in this browser: try again each time the lane is shown
+  const doneN = LEVELS.filter(L => isDone(L.id)).length, lr = FEAT.resume ? latestRun() : null, nx = nextOpen();
+  $('lane-count').textContent = doneN + ' of ' + LEVELS.length + ' streets warm';
+  $('lane-msg').textContent = laneNote; $('lane-msg').hidden = !laneNote; laneNote = '';
+  $('lane-continue').textContent = lr ? 'Resume: ' + lr.name : nx ? (doneN ? 'Continue: ' : 'Start: ') + nx.name : 'See the warm lane';
+  $('streets').innerHTML = LEVELS.map(L => { const d = P.done[L.id], open = unlocked(L), cls = d ? 'done' : open ? 'next' : 'locked';
+    return '<li class="street ' + cls + '"><div class="st-card">' + housesSvg(L.homes, !!d) +
+      '<span class="st-name">' + (L.index + 1) + ' · ' + esc(L.name) + '</span><span class="st-what">' + esc(L.what) + '</span>' +
+      (RUNS[L.id] && FEAT.resume && open ? '<span class="st-state" data-runstate="' + L.id + '">' + esc(runStateLabel(L.id)) + '</span></div>'
+        : '<span class="st-state">' + (d ? 'Warm' + (d.wins > 1 ? ' · won ' + d.wins + ' times' : '') : open ? 'Ready' : 'Opens when the street before it is warm') + '</span></div>') +
+      (d ? '<p class="st-rec"><span>Your records, from past runs:</span> ' + recordLines(d).map(esc).join(' · ') + '</p>' : '') + actionsFor(L) + '</li>'; }).join('');
+  document.querySelectorAll('#streets button[data-act]').forEach(b => b.addEventListener('click', () => { audio(); const id = b.dataset.id;
+    if (b.dataset.act === 'resume') chapter.start(id, { resume: true }); else chapter.start(id, { tag: b.dataset.tag }); }));
+  renderLaneSave();
+  $('scene-wrap').hidden = !FEAT.scene;
+  const pend = FEAT.scene && sceneView === 'played' ? LEVELS.find(L => isDone(L.id) && !P.seen[L.id]) : null;
+  if (pend) playReveal(pend.id); else { revealTok++; $('reveal').hidden = true; if (FEAT.scene) $('scene').innerHTML = sceneSvg(sceneWarm(), { next: nx && nx.id }); }
+  $('reset-ask').hidden = false; $('reset-confirm').hidden = true; $('reset-ask').disabled = doneN === 0 && !Object.keys(RUNS).length;
+  $('reset-note').textContent = resetNote; $('reset-note').hidden = !resetNote; resetNote = '';
+  renderReview();
+}
+function renderEnding() { syncSaves(); const st = saveState();
+  $('ending-scene').innerHTML = FEAT.scene ? sceneSvg(warmSet(), {}) : '<div class="ending-lane">' + LEVELS.map(L => '<div class="end-row">' + housesSvg(L.homes, isDone(L.id)) + '<span>' + esc(L.name) + '</span></div>').join('') + '</div>';
+  const ds = LEVELS.map(L => [L, P.done[L.id]]).filter(x => x[1]), homes = LEVELS.reduce((s, L) => s + L.homes, 0), pl = ds.reduce((s, x) => s + x[1].fewest.placements, 0);
+  const big = ds.filter(x => x[1].biggest).sort((a, b) => b[1].biggest.fire - a[1].biggest.fire)[0];
+  $('ending-stats').textContent = homes + ' homes warm, and the mill turns again. Your fewest-placement runs: ' + pl + ' placements across the seven streets' + (big ? '; your biggest single fire: ' + big[1].biggest.fire + ' cells, on ' + big[0].name + ' (setup ' + big[1].biggest.tag + ')' : '') + '. Each figure comes from one real run.';
+  const n = st.lost.length;
+  $('ending-save').textContent = !SAVES ? 'Pooled comparison: nothing is saved in this mode.' : n ? 'Not saved in this browser: ' + nameList(st.lost) + '. ' + (n === LEVELS.length ? 'The lane' : n === 1 ? 'That street' : 'Those streets') + ' will be cold again after you close this page.'
+    : st.behind ? 'The lane stays warm in this browser; your latest run was not saved.' : 'The lane stays warm in this browser.';
+  $('ending-save').className = 'lane-save' + (!SAVES || n || st.behind ? ' warn' : ''); }
+// leaving a street: whatever its attempt still has running is abandoned with it; an unfinished run stays saved for Resume
+function toLane() { HFG.abandon(); game = null; hideOffer(); show('lane'); renderLane(); }
+function toEnding() { HFG.abandon(); game = null; hideOffer(); show('ending'); renderEnding(); }
+function renderPvBtn() { const b = $('pv-btn'); b.hidden = !FEAT.preview; b.textContent = settings.assist === 'preview' ? 'Preview: on' : 'Preview: off'; b.setAttribute('aria-pressed', settings.assist === 'preview' ? 'true' : 'false'); }
+
+// what a saved run must match when it is resumed
+function snapOf(H) { return { key: FS.boardKey(H.g), draws: H.g.draws, placed: H.g.placed, score: H.score(), burned: H.g.burned, warm: H.G.warm.slice(), pool: H.G.pool, fs: H.fsCount, fire: H.maxFire }; }
+function checkRun(L, run) { if (!run || run.v !== 1 || run.id !== L.id || !Array.isArray(run.moves) || !run.snap || typeof run.attempt !== 'string') return { ok: false, why: 'it was incomplete' };
+  if (run.version !== VERSION || run.rules !== RULES_ID) return { ok: false, why: 'it was made with a different version of the game' };
+  const V = variantByTag(L, run.tag); if (!V || V.seed !== run.seed || layoutOf(V) !== run.layout) return { ok: false, why: 'its setup no longer matches this street' };
+  return { ok: true, V }; }
+
+const chapter = {
+  current: null, attempts: {},   // HFG.start begins a new attempt (a new HFG.epoch), which ends anything the previous one left running
+  start(id, how) { how = how || {}; const L = LEVEL[id]; if (!L || !unlocked(L)) return toLane();
+    let V, moves = null, run = null, attempt, t_start = Date.now();
+    if (how.resume) { run = RUNS[id]; const chk = checkRun(L, run);
+      if (!chk.ok) { const gone = retireRun(id); laneNote = 'Your unfinished run on ' + L.name + ' could not be restored exactly (' + chk.why + '), so it was set aside. Nothing else changed.' + (gone ? '' : ' This browser did not let it be removed, so it may be offered again after this page is closed.'); return toLane(); }
+      V = chk.V; moves = run.moves; attempt = run.attempt; t_start = run.t_start || t_start; }
+    let oldStays = null;   // an explicit new start sets any earlier run on this street aside, in this page and (when it can) in this browser
+    if (!run) { V = variantByTag(L, FEAT.setups ? how.tag || freshTag(L) : 'A') || L.variants[0]; attempt = newAttempt(); const before = persistedRuns[id];
+      if (SAVES && FEAT.resume && (RUNS[id] || before) && !retireRun(id)) oldStays = runState(id).old || null; }
+    if (P.setups[id] !== V.tag) { P.setups[id] = V.tag; if (SAVES) writeProgress(); }
+    this.current = L; this.tag = V.tag; this.attempts[id] = (this.attempts[id] || 0) + 1; show('play'); game = HFG; particles = []; streaks = [];
+    const rec = { id, attempt, tag: V.tag, seed: V.seed, t_start, moves: moves ? moves.map(m => [m[0], m[1], m[2]]) : [], placements: moves ? moves.length : 0, won: false, ended: null, resumed: !!run };
+    HFG.start({ level: L, variant: V, rec, moves, goalMode: FEAT.goal });
+    if (run) { const snap = snapOf(HFG), same = HFG.replayOk && JSON.stringify(snap) === JSON.stringify(run.snap);
+      if (!same || goalMet(HFG.G) || HFG.g.over) { HFG.abandon(); game = null; const gone = retireRun(id);
+        laneNote = (!same ? 'Your unfinished run on ' + L.name + ' could not be restored exactly (the replay did not reach the saved point), so it was set aside. Nothing else changed.' : 'Your unfinished run on ' + L.name + ' had already ended, so it was set aside.') + (gone ? '' : ' This browser did not let it be removed, so it may be offered again after this page is closed.');
+        return toLane(); } }
+    fit(); renderPvBtn();
+    setStatus(L.name + ' · setup ' + V.tag, run ? 'Resumed where you left off: ' + moves.length + ' placement' + (moves.length === 1 ? '' : 's') + ' in.'
+      : oldStays ? 'Note: ' + oldRunText(L, oldStays) + '.' : L.id === 'c1' ? FIRST_HINT : L.hint, oldStays ? 'bad' : ''); },
+  // after every placement that does not win: the run so far is saved now, before any animation, so closing or reloading during the burn
+  // resumes from after that placement. A run that has run out of room is not kept (it can only be retried).
+  committed(G) { if (!FEAT.resume || !SAVES) return; const L = G.level, rec = G.rec;
+    if (G.g.over) { retireRun(L.id, rec.attempt); return; }
+    RUNS[L.id] = { v: 1, version: VERSION, rules: RULES_ID, id: L.id, tag: G.variant.tag, seed: G.variant.seed, layout: layoutOf(G.variant), attempt: rec.attempt, t_start: rec.t_start, savedAt: Date.now(),
+      moves: rec.moves.map(m => [m[0], m[1], m[2]]), snap: snapOf(G) };
+    writeRuns(); },
+  // the winning placement itself: called by the woodshed synchronously, before any animation, with the attempt that made it
+  earned(G) { const L = G.level, rec = G.rec, placements = rec.moves.length, score = G.score(), fs = G.fsCount;
+    const wasAll = allDone(), firstWin = !P.done[L.id];
+    const info = { attempt: rec.attempt, tag: G.variant.tag, seed: G.variant.seed, rules: RULES_ID, placements, score, fs, fire: G.maxFire, at: new Date().toISOString() };
+    const fresh = recordWin(L.id, info);
+    retireRun(L.id, rec.attempt); const saved = SAVES ? lastSaveOk === true && !!persisted.done[L.id] && persisted.done[L.id].won.includes(rec.attempt) : false;
+    const oldStays = SAVES && runState(L.id).kind === 'stale' ? persistedRuns[L.id] : null;
+    Object.assign(rec, { won: true, ended: 'win', score, placements });
+    G.result = Object.freeze({ id: L.id, attempt: rec.attempt, epoch: G.epoch, placements, score, fs, fire: G.maxFire, saved, fresh, keptBefore: !saved && !!persisted.done[L.id], wasAll, firstWin, oldStays });
+    return G.result; },
+  // the victory moment and the choice that follows, for the attempt that won only (ep): it stops as soon as that attempt is gone
+  async win(G, how, ep) {
+    const res = G.result, L = G.level, alive = () => G.epoch === ep && game === G && res && res.epoch === ep;
+    const wait = () => new Promise(r => setTimeout(r, 30));
+    if (!alive()) return; G.rec.how = how; G.frozen = true; G.allLit = true;
+    while (G.cap && now() < G.cap.until && !FAST()) { await wait(); if (!alive()) return; }   // Q-024: the acknowledgement ends with the lock, never later
+    const v = { t0: now(), skip: false }; G.victory = v; SND.warm(); G.homesLit = G.homes;
+    if (FEAT.scene) winCardShow(G, L, res, v);   // Q-024 H: the lane's before-and-after, inside the existing victory moment
+    for (let k = 0; k < G.homes; k++) burst(ox + cell * STREETS[L.id].homes[k].x, cell * 0.6, 18, { speed: cell * 3, r: cell * 0.08, c: 'rgba(255,200,110,A)', life: 900 });
+    const t0 = now(); while (now() - t0 < 2000 * (FAST() ? 0 : 1) && !v.skip) { await wait(); if (!alive()) return; }
+    if (G.victory === v) G.victory = null; if (!alive()) return;
+    const savedText = !SAVES ? 'Pooled comparison: not saved.' : res.saved ? 'Saved in this browser, on this device.' : res.keptBefore ? 'This run was not saved; the street stays warm from before.' : 'Not saved: this browser did not keep it, so it will be cold again when you close this page.';
+    setStatus('The street is warm', savedText + (res.oldStays ? ' Also, ' + oldRunText(L, res.oldStays) + '.' : ''), 'good');
+    if (!res.wasAll && allDone()) { offer('See the warm lane', () => { if (FEAT.scene && !P.seen[L.id]) { toLane(); } else toEnding(); }, () => toLane(), 'Back to the lane'); return; }
+    const nx = LEVELS.slice(L.index + 1).find(x => !isDone(x.id)) || nextOpen();
+    if (res.firstWin && FEAT.scene) offer(nx ? 'Next: ' + nx.name : 'Back to the lane', () => !nx ? toLane() : RUNS[nx.id] && FEAT.resume ? this.start(nx.id, { resume: true }) : this.start(nx.id, { tag: P.setups[nx.id] ? freshTag(nx) : nx.variants[0].tag }), () => toLane(), 'Back to the lane');   // Q-024 H: the change was just shown in the win itself
+    else offer(FEAT.setups ? 'Play again: fresh setup' : 'Play it again', () => this.start(L.id, { tag: freshTag(L, G.variant.tag) }), () => toLane(), 'Back to the lane'); },
+  // out of room: the run is over; a retry is a new attempt, on the same setup or a fresh one (an interrupted run is resumed instead)
+  fail(G) { const rec = G.rec, L = G.level; G.over = true; G.frozen = true; rec.ended = 'no_room'; rec.score = G.score(); SND.fail();
+    const gone = SAVES && FEAT.resume ? retireRun(L.id, rec.attempt) : true, old = gone ? null : persistedRuns[L.id];
+    setStatus('No room left', (isDone(L.id) ? 'This street stays warm from before. ' : '') + (FEAT.setups ? 'Try again: the same setup, or a fresh one.' : 'Try the street again from the start.') + (old ? ' Note: ' + oldRunText(L, old) + '.' : ''), 'bad');
+    if (FEAT.setups) offer('Fresh setup', () => this.start(L.id, { tag: freshTag(L, G.variant.tag) }), () => this.start(L.id, { tag: G.variant.tag }), 'Same setup');
+    else offer('Try again', () => this.start(L.id, { tag: 'A' }), () => toLane(), 'Back to the lane'); },
+};
+const flow = chapter;   // the woodshed calls flow.committed / flow.earned / flow.win / flow.fail
+function saveSoon() {}  // runs are saved by flow.committed, at the placement itself
+
+function renderReview() {}   // the player build has no review mode
+// ---- buttons
+$('lane-continue').addEventListener('click', () => { audio(); const lr = FEAT.resume ? latestRun() : null; if (lr) return chapter.start(lr.id, { resume: true }); const nx = nextOpen();
+  if (nx) chapter.start(nx.id, { tag: P.setups[nx.id] ? freshTag(nx) : nx.variants[0].tag }); else toEnding(); });
+$('reveal-close').addEventListener('click', () => { $('reveal-skip').click(); $('reveal').hidden = true; });
+$('pv-btn').addEventListener('click', () => setPreview(settings.assist !== 'preview'));
+$('back').addEventListener('click', () => { if (!game) return toLane(); syncSaves(); show('menu'); const G = HFG, L = chapter.current, rs = runState(L.id), pl = (n) => n + ' placement' + (n === 1 ? '' : 's');
+  $('menu-where').textContent = L.name + ' · setup ' + G.variant.tag + ' · ' + homesWarm(G.G) + ' of ' + G.homes + ' homes warm · ' + G.g.placed + ' placements';
+  $('menu-note').textContent = G.won ? (persisted.done[L.id] ? 'This street is warm and saved.' : 'This street is warm for this visit but not saved in this browser.')
+    : !FEAT.resume || !SAVES ? 'Leaving now means this street starts again next time.'
+    : !G.g.placed || !RUNS[L.id] ? 'Nothing placed yet: leaving now just leaves the street as it is.' + (rs.kind === 'stale' ? ' Note: ' + oldRunText(L, rs.old) + '.' : '')
+    : rs.kind === 'saved' ? 'Your run is saved in this browser: leave now and you can resume it from the lane, even after closing the page.'
+    : rs.kind === 'older' ? 'This browser holds an earlier save of this run (' + pl(rs.saved) + '); your latest ' + pl(rs.now) + ' are kept only while this page stays open. If the page is closed, Resume would start from placement ' + rs.saved + '.'
+    : 'This browser did not save your run, so it can only be resumed until this page is closed.' + (rs.old ? ' Also, ' + oldRunText(L, rs.old) + '.' : '');
+  renderSoundBtn(); $('menu-same').textContent = FEAT.setups ? 'Start again: same setup (' + G.variant.tag + ')' : 'Start this street again'; $('menu-fresh').hidden = !FEAT.setups; });
+$('menu-back').addEventListener('click', () => { show('play'); fit(); });
+$('menu-same').addEventListener('click', () => chapter.start(chapter.current.id, { tag: HFG.variant.tag }));
+$('menu-fresh').addEventListener('click', () => chapter.start(chapter.current.id, { tag: freshTag(chapter.current, HFG.variant.tag) }));
+$('menu-lane').addEventListener('click', () => toLane());
+function renderSoundBtn() { const b = $('menu-sound'); b.textContent = 'Sound: ' + (soundOn() ? 'on' : 'off'); b.setAttribute('aria-pressed', soundOn() ? 'true' : 'false'); }   // Q-024 S
+$('menu-sound').addEventListener('click', () => { PREFS.sound = !soundOn(); if (SAVES) writeKey(LS_PREFS, JSON.stringify(PREFS)); try { if (AC) { if (PREFS.sound) AC.resume(); else AC.suspend(); } } catch (e) {} renderSoundBtn(); });
+$('w-build').textContent = VERSION; renderSoundBtn();
+$('ending-lane-btn').addEventListener('click', () => toLane());
+$('reset-ask').addEventListener('click', () => { $('reset-ask').hidden = true; $('reset-confirm').hidden = false; });
+$('reset-no').addEventListener('click', () => { $('reset-ask').hidden = false; $('reset-confirm').hidden = true; });
+// reset: cleared only if the browser really lets go; otherwise nothing changes and the lane says so (review mode resets its own storage only)
+// fs-q021-lane-2: the runs key is cleared first and the progress key only after it, so a partial reset can never leave saved runs whose
+// retirement records were erased; the note says exactly what was and was not cleared
+$('reset-yes').addEventListener('click', () => { const gone = (k) => { try { localStorage.removeItem(k); return localStorage.getItem(k) === null; } catch (e) { return false; } };
+  const hadRuns = Object.keys(readRuns()).length > 0, hadProg = readKey(LS_KEY) !== null, runsGone = gone(LS_RUNS), progGone = runsGone && gone(LS_KEY);
+  if (runsGone && progGone) { P = emptyProgress(); persisted = emptyProgress(); RUNS = {}; persistedRuns = {}; lastSaveOk = null; }
+  else if (runsGone) { RUNS = {}; persistedRuns = {}; persisted = readStored(); P = JSON.parse(JSON.stringify(persisted));
+    resetNote = 'Unfinished streets were cleared, but this browser did not let the chapter clear its warm streets and records, so they stay.'; }
+  else if (!hadRuns && !hadProg) { P = emptyProgress(); RUNS = {}; persistedRuns = readRuns(); persisted = readStored(); resetNote = 'Reset for this visit. This browser is not saving, so there was nothing saved to clear.'; }
+  else { persisted = readStored(); persistedRuns = readRuns(); resetNote = 'Could not reset: this browser did not let the chapter clear what it saved, so nothing was changed.'; }
+  renderLane(); });
+// fs-q021-lane-2: unsaved runs or progress are written again when the page is hidden or closed, and every few seconds while any is pending
+addEventListener('pagehide', () => syncSaves());
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') syncSaves(); });
+setInterval(() => { if (!SAVES || !(dirty() || (FEAT.resume && runsDirty()))) return; syncSaves(); if (!$('lane').hidden) renderLaneSave(); }, 4000);
+
+show('lane'); renderLane(); requestAnimationFrame(frame);
+</script>
+</body></html>
